@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# Volgt de STORM-standaard 0.5.x (aparte repo). De importnaam blijft `storm`;
+# de distributienaam is `storm-services` om standaard en tooling te scheiden.
+[project]
+name = "storm-services"
+version = "0.5.0"
+description = "STORM-services: transformaties (van/naar DSO-formaten) en renvooiservice rond de STORM-standaard"
+requires-python = ">=3.10"
+dependencies = [
+    "lxml>=5",
+    "click>=8",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "xmlschema>=3"]
+geo = ["shapely>=2"]
+
+[project.scripts]
+storm = "storm.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -166,14 +166,17 @@ volledig → integrated` verliesvrij; `integrated → DB → integrated`
 model-gelijk. Fixtures: de Storm-repo-voorbeelden + SimplicIT's
 `Tests.Shared/fixtures/import` en `Api.Tests/fixtures/roundtrip`.
 
-## 9. Open beslissingen (voor Richard)
+## 9. Beslissingen (vastgelegd 2026-07-31)
 
-1. **Adapter-locatie**: `SimplicIT.Storm` in de SimplicIT-solution (aanbevolen,
-   afhankelijkheid SimplicIT → Storm) of een `Storm.SimplicIT` in Storm-services
-   (dan hangt Storm-services aan `SimplicIT.Domain`)?
-2. **Distributie**: `Storm.Core` als NuGet (GitHub Packages) — aanbevolen — of
-   project-/submodule-referentie zoals de standaard-submodule?
-3. **download↔volledig parse-frontend**: standalone in `Storm.Dso` (aanbevolen,
-   STORM zelfstandig) of SimplicIT's parsers hergebruiken via een interface?
-4. **Python-kiem**: behouden als referentie/voorbeeld-generator, of na de
-   C#-port uitfaseren?
+1. **Adapter-locatie**: `SimplicIT.Storm` **in de SimplicIT-solution**
+   (afhankelijkheid loopt één kant op: SimplicIT → Storm; Storm-services blijft
+   SimplicIT-agnostisch). ✅
+2. **Distributie**: `Storm.Core` als **NuGet-package** (GitHub Packages),
+   versie gekoppeld aan de standaard-versie. ✅
+3. **download↔volledig parse-frontend**: **standalone** in `Storm.Dso` (STORM
+   zelfstandig en testbaar), met een interface zodat SimplicIT z'n eigen parsers
+   kan injecteren. ✅
+4. **Python**: **thin** — referentie/prototyping + voorbeeld-generator
+   (`python/`). De transform-logica leeft alleen in C# (geen dubbele library).
+   De oude `src/storm` (pre-split model) wordt gearchiveerd. Transitioneert
+   later naar C#-only zodra `Storm.Cli` de repo-voorbeelden genereert. ✅

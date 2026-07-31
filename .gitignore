@@ -1,6 +1,13 @@
+# Python
 __pycache__/
 *.egg-info/
 .pytest_cache/
 build/
 dist/
 .venv/
+
+# .NET
+[Bb]in/
+[Oo]bj/
+*.user
+

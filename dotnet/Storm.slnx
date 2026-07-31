@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Storm.Cli/Storm.Cli.csproj" />
+  <Project Path="Storm.Core.Tests/Storm.Core.Tests.csproj" />
+  <Project Path="Storm.Core/Storm.Core.csproj" />
+  <Project Path="Storm.Dso/Storm.Dso.csproj" />
+  <Project Path="Storm.Imtr/Storm.Imtr.csproj" />
+</Solution>

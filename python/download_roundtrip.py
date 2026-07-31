@@ -175,7 +175,58 @@ def rapport(pkgdir):
     toon("OW — attributen",res['ow_attr_verlies'])
     return res
 
+# ---------- volledig -> download (reverse, verbatim lagen) ----------
+REGTYPE_ELEM={v:k for k,v in NV.REGELINGTYPE.items()}   # 'compact'->'RegelingCompact'
+MODFILE={'ExpressionIdentificatie':'Identificatie.xml',
+         'RegelingVersieMetadata':'VersieMetadata.xml',
+         'RegelingMetadata':'Metadata.xml','Momentopname':'Momentopname.xml'}
+
+def volledig2tekst(R, nsmap=None):
+    """Reconstrueer de STOP RegelingCompact uit de verbatim tekstlaag:
+    namespace terug-hernoemen en het root-element + attributen herstellen.
+    nsmap (bv. van het bron-Tekst.xml) zorgt voor identieke prefixen."""
+    tekst=next(e for e in R if L(e.tag)=='Tekst')
+    rootname=REGTYPE_ELEM.get(tekst.get('structuur','compact'),'RegelingCompact')
+    root=etree.Element(f"{{{NV.STOP_TEKST}}}{rootname}",
+                       nsmap=nsmap or {'tekst':NV.STOP_TEKST})
+    for k,v in tekst.attrib.items():
+        if L(k)!='structuur': root.set(k,v)      # componentnaam/wordt/schemaversie
+    for c in tekst:
+        if not isinstance(c.tag,str): continue
+        cp=deepcopy(c)
+        for e in cp.iter():
+            if isinstance(e.tag,str) and e.tag.startswith(f"{{{TEKST}}}"):
+                e.tag=f"{{{NV.STOP_TEKST}}}"+L(e.tag)
+        root.append(cp)
+    etree.cleanup_namespaces(root)
+    return root
+
+def volledig2meta(R):
+    meta=next((e for e in R if L(e.tag)=='Metadata'),None)
+    reg=next((e for e in meta if L(e.tag)=='Regeling'),None) if meta is not None else None
+    return {L(c.tag):deepcopy(c) for c in (reg if reg is not None else []) if isinstance(c.tag,str)}
+
+_BP=etree.XMLParser(remove_blank_text=True)
+def canon(el):
+    # canoniek, met niet-significante witruimte tussen elementen genormaliseerd
+    # (semantische lat: opmaak-witruimte telt niet als informatie)
+    e2=etree.fromstring(etree.tostring(el), _BP)
+    return etree.tostring(e2, method='c14n2')
+
+def roundtrip_verbatim(pkgdir):
+    """download -> volledig -> download' voor de verbatim lagen; canonieke diff."""
+    pkgdir=Path(pkgdir); regdir=pkgdir/'Regeling'
+    R=download2volledig(pkgdir)
+    diffs=[]
+    src_tekst=parse(regdir/'Tekst.xml')
+    if canon(src_tekst)!=canon(volledig2tekst(R,src_tekst.nsmap)): diffs.append('Regeling/Tekst.xml')
+    for ln,el in volledig2meta(R).items():
+        fn=MODFILE.get(ln)
+        if fn and (regdir/fn).exists():
+            if canon(parse(regdir/fn))!=canon(el): diffs.append('Regeling/'+fn)
+    return diffs
+
 if __name__=='__main__':
     import sys
-    default=r"/d/downloadpakketten/prod/enkhuizen-gm0388/omgevingsplan/uitgepakt/1-0"
+    default=r"D:/downloadpakketten/prod/enkhuizen-gm0388/omgevingsplan/uitgepakt/1-0"
     rapport(sys.argv[1] if len(sys.argv)>1 else default)

@@ -63,10 +63,21 @@ def leaves(e):
     out=[]
     for c in kids(e):
         if kids(c): out.extend(leaves(c))
-        else: out.append((L(c.tag),norm(''.join(c.itertext()))))
+        else: out.append((L(c.tag),c.text))     # waarde verbatim (bv. NBSP)
     return out
 
 SKIP={'eigenSymbolisatie'}  # presentatie, geen inhoud
+
+def struct_mirror(src):
+    """Structuur verbatim spiegelen naar storm-ow (nesting + namen behouden,
+    tekst op de bladeren). Voor datatype-substructuren zoals
+    bestuurlijkeGrenzenVerwijzing, waar flattenen een laag zou verliezen."""
+    out=T(L(src.tag))
+    if not kids(src):
+        out.text=src.text; return out           # waarde verbatim
+    for c in kids(src):
+        out.append(struct_mirror(c))
+    return out
 
 def mirror_obj(src):
     ln=L(src.tag); out=T(ln)
@@ -111,16 +122,19 @@ def mirror_obj(src):
             for g in kids(c):
                 if L(g.tag)=='Kaartlaag': kl.append(mirror_obj(g))
             out.append(kl)
-        elif lc in ('hoogte','bestuurlijkeGrenzenVerwijzing',
-                    'BestuurlijkeGrenzenVerwijzing'):
-            # IMOW 2.0 schreef kleine letter, 3.x een hoofdletter -> normaliseer
-            name='bestuurlijkeGrenzenVerwijzing' if lc[0] in 'bB' and 'renzen' in lc else lc
-            w=T(name)
+        elif lc=='hoogte':
+            w=T(lc)
             for nm,text in leaves(c):
                 w.append(T(nm,text))
             out.append(w)
+        elif lc.lower()=='bestuurlijkegrenzenverwijzing':
+            # verbatim structuur behouden (wrapper > datatype-laag > bladeren);
+            # flattenen zou de BestuurlijkeGrenzenVerwijzing-datatype verliezen
+            out.append(struct_mirror(c))
+        elif kids(c):
+            out.append(struct_mirror(c))          # geneste structuur behouden
         else:
-            out.append(T(lc,norm(''.join(c.itertext()))))
+            out.append(T(lc,c.text))              # waarde verbatim
     return out
 
 # objecttype -> (sectie, bucket-key voor volgorde binnen sectie)

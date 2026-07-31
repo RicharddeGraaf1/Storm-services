@@ -27,6 +27,7 @@ XSD=Path(r"C:\GIT\Storm\standaard\xsd\storm-volledig.xsd")
 P=etree.XMLParser(recover=True, remove_blank_text=False)
 def parse(p): return etree.parse(str(p),P).getroot()
 def L(t): return t.split('}')[-1] if isinstance(t,str) and '}' in t else t
+kids=NV.kids
 
 META_MODULES=('Identificatie.xml','VersieMetadata.xml','Metadata.xml','Momentopname.xml')
 
@@ -206,12 +207,14 @@ def volledig2meta(R):
     reg=next((e for e in meta if L(e.tag)=='Regeling'),None) if meta is not None else None
     return {L(c.tag):deepcopy(c) for c in (reg if reg is not None else []) if isinstance(c.tag,str)}
 
-_BP=etree.XMLParser(remove_blank_text=True)
+_BP=etree.XMLParser(remove_blank_text=True, recover=True)
 def canon(el):
-    # canoniek, met niet-significante witruimte tussen elementen genormaliseerd
-    # (semantische lat: opmaak-witruimte telt niet als informatie)
-    e2=etree.fromstring(etree.tostring(el), _BP)
-    return etree.tostring(e2, method='c14n2')
+    # canoniek, met niet-significante witruimte genormaliseerd (semantische lat)
+    # en ongebruikte namespace-declaraties (o.a. de kapotte xmlns:schemaLocation
+    # uit de bron) opgeruimd zodat ze de vergelijking niet vertroebelen.
+    e2=deepcopy(el); etree.cleanup_namespaces(e2)
+    e3=etree.fromstring(etree.tostring(e2), _BP)
+    return etree.tostring(e3, method='c14n2')
 
 def roundtrip_verbatim(pkgdir):
     """download -> volledig -> download' voor de verbatim lagen; canonieke diff."""
@@ -225,6 +228,122 @@ def roundtrip_verbatim(pkgdir):
         if fn and (regdir/fn).exists():
             if canon(parse(regdir/fn))!=canon(el): diffs.append('Regeling/'+fn)
     return diffs
+
+# ---------- volledig -> OW-bestanden (reverse, geleerde IMOW-mappings) ----------
+def NS(t): return t.split('}')[0][1:] if isinstance(t,str) and t.startswith('{') else ''
+SECTIE_CONTAINERS={'Regels','Normen','Activiteiten','Locaties','Gebiedsaanwijzingen',
+ 'VrijeTekst','Kaarten'}
+
+def _seg(ref):
+    """Objecttype-segment uit een IMOW-id: nl.imow-<bg>.<type>.<id> -> <type>."""
+    p=(ref or '').split('.')
+    return p[2] if len(p)>=3 else None
+
+def learn_ow(pkgdir):
+    """Leer uit de bron-OW-bestanden: namespace per objecttype, de namespace
+    per *Ref, en welke *Ref bij een (wrapper, doeltype) hoort. Het doeltype
+    (uit de ref-id) is nodig omdat één wrapper naar verschillende types kan
+    wijzen (bv. divisieaanduiding -> DivisieRef of DivisietekstRef)."""
+    pkgdir=Path(pkgdir); objns={}; refmap={}; refchild={}; refns={}
+    for owf in sorted((pkgdir/'OW-bestanden').glob('*.xml')):
+        if owf.name=='manifest-ow.xml': continue
+        for obj in parse(owf).iter(f"{{{DEELBESTAND}}}owObject"):
+            for e in obj.iter():
+                if not isinstance(e.tag,str): continue
+                lc=L(e.tag)
+                if lc[:1].isupper() and lc.endswith('Ref'): refns[lc]=NS(e.tag)
+                elif lc[:1].isupper(): objns[lc]=NS(e.tag)
+                if lc[:1].islower():                     # wrapper
+                    for ch in kids(e):
+                        if L(ch.tag).endswith('Ref'):
+                            rn=L(ch.tag); refchild.setdefault(lc,rn)
+                            refmap[(lc,_seg(ch.get(f"{{{XLINK}}}href")))]=rn
+    return {'objns':objns,'refmap':refmap,'refchild':refchild,'refns':refns,'cap':{}}
+
+def _href(el,ref,LZ,refname):
+    el.set(f"{{{XLINK}}}href",ref)
+
+def _isref(c): return c.get('ref') is not None and not kids(c)
+
+def rev_obj(sel,parent_ns,LZ):
+    """Reconstrueer één IMOW-object(-subboom) uit een storm-ow-element.
+    Opeenvolgende ref-wrappers met dezelfde naam worden gegroepeerd tot één
+    bron-wrapper met meerdere *Ref-kinderen (zo staat het in de bron)."""
+    lc=L(sel.tag); name=LZ['cap'].get(lc,lc)
+    myns=LZ['objns'].get(lc,parent_ns)
+    el=etree.Element(f"{{{myns}}}{name}")
+    if sel.get('wId'): el.set('wId',sel.get('wId'))
+    cs=kids(sel); i=0
+    while i<len(cs):
+        c=cs[i]; clc=L(c.tag)
+        if _isref(c):
+            grp=[c]; j=i+1                            # groepeer gelijknamige refs
+            while j<len(cs) and L(cs[j].tag)==clc and _isref(cs[j]):
+                grp.append(cs[j]); j+=1
+            if clc=='activiteit':                     # activiteitaanduiding: directe ActiviteitRef
+                rns=LZ['refns'].get('ActiviteitRef',myns)
+                for g in grp:
+                    etree.SubElement(el,f"{{{rns}}}ActiviteitRef").set(f"{{{XLINK}}}href",g.get('ref'))
+            elif clc.endswith('Ref'):                 # bv. GeometrieRef: is zelf de ref
+                rns=LZ['refns'].get(clc,myns)
+                for g in grp:
+                    etree.SubElement(el,f"{{{rns}}}{clc}").set(f"{{{XLINK}}}href",g.get('ref'))
+            else:                                     # wrapper met *Ref-kind(eren)
+                w=etree.SubElement(el,f"{{{myns}}}{clc}")
+                for g in grp:
+                    ref=g.get('ref')
+                    refname=(LZ['refmap'].get((clc,_seg(ref))) or LZ['refchild'].get(clc)
+                             or clc[:1].upper()+clc[1:]+'Ref')
+                    rns=LZ['refns'].get(refname,myns)
+                    etree.SubElement(w,f"{{{rns}}}{refname}").set(f"{{{XLINK}}}href",ref)
+            i=j
+        elif kids(c):
+            el.append(rev_obj(c,myns,LZ)); i+=1
+        else:
+            etree.SubElement(el,f"{{{myns}}}{clc}").text=c.text; i+=1
+    return el
+
+def _ident(el):
+    for c in el.iter():
+        if isinstance(c.tag,str) and L(c.tag)=='identificatie': return c.text
+    return None
+
+def sem_canon(el):
+    """Prefix-onafhankelijke canonieke representatie op {URI}localname, met
+    niet-significante witruimte genormaliseerd. Voor de OW-laag (geen mixed
+    content) is namespace-URI + structuur + waarden de informatie; het gekozen
+    prefix niet."""
+    def walk(e):
+        at=sorted((k,v) for k,v in e.attrib.items())   # k = {ns}naam (Clark)
+        parts=[e.tag,'{',repr(at),'}',(e.text or '').strip(),'[']
+        for c in e:
+            if isinstance(c.tag,str): parts.append(walk(c))
+        parts.append(']')
+        return ''.join(parts)
+    return walk(el)
+
+def roundtrip_ow(pkgdir):
+    """Reconstrueer alle owObjecten uit volledig en vergelijk canoniek (per
+    identificatie) met de bron. Retourneert (aantal_ok, totaal, mismatches)."""
+    pkgdir=Path(pkgdir); R=download2volledig(pkgdir); LZ=learn_ow(pkgdir)
+    ow=next(e for e in R if L(e.tag)=='OwObjecten')
+    rebuilt={}
+    for sec in kids(ow):
+        objs=kids(sec) if L(sec.tag) in SECTIE_CONTAINERS else [sec]
+        for o in objs:
+            r=rev_obj(o,'',LZ); rebuilt[_ident(r)]=r
+    src={}
+    for owf in sorted((pkgdir/'OW-bestanden').glob('*.xml')):
+        if owf.name=='manifest-ow.xml': continue
+        for obj in parse(owf).iter(f"{{{DEELBESTAND}}}owObject"):
+            typed=next((c for c in obj if isinstance(c.tag,str)),None)
+            if typed is not None: src[_ident(typed)]=typed
+    ok=0; mis=[]
+    for ident,s in src.items():
+        r=rebuilt.get(ident)
+        if r is not None and sem_canon(r)==sem_canon(s): ok+=1
+        else: mis.append(ident)
+    return ok,len(src),mis
 
 if __name__=='__main__':
     import sys

@@ -27,47 +27,34 @@ def T(name,text=None,ns=OW):
     if text is not None: el.text=text
     return el
 
-# ---------- tekstlaag: structuurbackbone spiegelen ----------
-TEKST_KEEP={'RegelingOpschrift','Lichaam','Boek','Deel','Hoofdstuk','Titel',
- 'Afdeling','Paragraaf','Subparagraaf','Subsubparagraaf','Bijlage',
- 'ArtikelgewijzeToelichting','Artikel','Lid','LidNummer','Divisie',
- 'Divisietekst','Kop','InleidendeTekst','Inhoud','Al','Tussenkop','Lijst',
- 'Li','LiNummer','Begrippenlijst','Begrip','Term','Definitie','Kadertekst',
- 'Gereserveerd','Vervallen','NogNietInWerking'}
-FLAT={'Al','Tussenkop','LidNummer','LiNummer','Term'}
+# ---------- tekstlaag: faithful verbatim spiegel ----------
 REGELINGTYPE={'RegelingCompact':'compact','RegelingVrijetekst':'vrijetekst',
  'RegelingKlassiek':'klassiek','RegelingTijdelijkdeel':'tijdelijkdeel'}
 
 def norm(s): return ' '.join((s or '').split()) or None
 
-ID_OK={'RegelingOpschrift','Lichaam','Boek','Deel','Hoofdstuk','Titel','Afdeling',
- 'Paragraaf','Subparagraaf','Subsubparagraaf','Bijlage','ArtikelgewijzeToelichting',
- 'Artikel','Lid','Divisie','Divisietekst'}
+STOP_TEKST="https://standaarden.overheid.nl/stop/imop/tekst/"
 
 def mirror_tekst(src):
-    ln=L(src.tag); out=T(ln,ns=TEKST)
-    if ln in ID_OK:
-        for a in ('eId','wId'):
-            if src.get(a): out.set(a,src.get(a))
-    if ln in FLAT:
-        out.text=norm(''.join(src.itertext())); return out
-    if ln=='Kop':
-        for want in ('Label','Nummer','Opschrift'):
-            for c in src:
-                if L(c.tag)==want:
-                    k=etree.SubElement(out,f"{{{TEKST}}}{want}")
-                    k.text=norm(''.join(c.itertext()))
-        return out
-    for c in src:
-        if isinstance(c.tag,str) and L(c.tag) in TEKST_KEEP:
-            out.append(mirror_tekst(c))
+    """Faithful verbatim spiegel van de STOP-tekst: deepcopy en hernoem alleen
+    de STOP-tekst-namespace naar urn:storm:tekst. Alles blijft behouden —
+    tabellen, inline-opmaak (i/b/IntRef/Noot/...), eId/wId, en de volledige
+    Divisie/Groep/Toelichting-structuur. volledig doet zelf geen transformatie;
+    storm-tekst.xsd valideert deze laag permissief (xs:any skip)."""
+    out=deepcopy(src)
+    old=f"{{{STOP_TEKST}}}"; new=f"{{{TEKST}}}"
+    for e in out.iter():
+        if isinstance(e.tag,str) and e.tag.startswith(old):
+            e.tag=new+e.tag[len(old):]
+    etree.cleanup_namespaces(out)
     return out
 
 # ---------- objectlaag: IMOW-objecten spiegelen ----------
 REF_WRAPPERS={'artikelOfLid','locatieaanduiding','gebiedsaanwijzing',
  'kaartaanduiding','omgevingsnormaanduiding','omgevingswaardeaanduiding',
  'gerelateerdeRegeltekst','gerelateerdeActiviteit','bovenliggendeActiviteit',
- 'gerelateerdeHoofdlijn','hoofdlijnaanduiding','divisieaanduiding','groepselement'}
+ 'gerelateerdeHoofdlijn','hoofdlijnaanduiding','divisieaanduiding','groepselement',
+ 'normweergave','activiteitlocatieweergave','gebiedsaanwijzingweergave'}
 
 def kids(e):
     return [c for c in e if isinstance(c.tag,str)]
@@ -111,10 +98,26 @@ def mirror_obj(src):
             for gg in kids(c):
                 if L(gg.tag)=='GeometrieRef': gr.set('ref',href(gg))
             g.append(gr); out.append(g)
-        elif lc in ('hoogte','bestuurlijkeGrenzenVerwijzing'):
-            w=T(lc)
-            for name,text in leaves(c):
-                w.append(T(name,text))
+        elif lc=='uitsnede':
+            u=T('uitsnede')
+            for g in kids(c):
+                if L(g.tag)=='Kaartextent':
+                    ke=T('Kaartextent')
+                    for name,text in leaves(g): ke.append(T(name,text))
+                    u.append(ke)
+            out.append(u)
+        elif lc=='kaartlagen':
+            kl=T('kaartlagen')
+            for g in kids(c):
+                if L(g.tag)=='Kaartlaag': kl.append(mirror_obj(g))
+            out.append(kl)
+        elif lc in ('hoogte','bestuurlijkeGrenzenVerwijzing',
+                    'BestuurlijkeGrenzenVerwijzing'):
+            # IMOW 2.0 schreef kleine letter, 3.x een hoofdletter -> normaliseer
+            name='bestuurlijkeGrenzenVerwijzing' if lc[0] in 'bB' and 'renzen' in lc else lc
+            w=T(name)
+            for nm,text in leaves(c):
+                w.append(T(nm,text))
             out.append(w)
         else:
             out.append(T(lc,norm(''.join(c.itertext()))))
@@ -123,14 +126,22 @@ def mirror_obj(src):
 # objecttype -> (sectie, bucket-key voor volgorde binnen sectie)
 SECTIE={'Regeltekst':('Regels',0),'RegelVoorIedereen':('Regels',1),
  'Instructieregel':('Regels',1),'Omgevingswaarderegel':('Regels',1),
- 'Regelingsgebied':('Regels',2),'Pons':('Regels',3),
  'Omgevingsnorm':('Normen',0),'Omgevingswaarde':('Normen',0),
  'Activiteit':('Activiteiten',0),
  'Gebied':('Locaties',0),'Gebiedengroep':('Locaties',0),'Ambtsgebied':('Locaties',0),
  'Punt':('Locaties',0),'Puntengroep':('Locaties',0),'Lijn':('Locaties',0),
  'Lijnengroep':('Locaties',0),
- 'Gebiedsaanwijzing':('Gebiedsaanwijzingen',0)}
-# NB Kaart/SymbolisatieItem/vrijetekst bewust nog niet meegenomen (peripheer).
+ 'Gebiedsaanwijzing':('Gebiedsaanwijzingen',0),
+ 'Regelingsgebied':('Regelingsgebied',0),'Pons':('Pons',0),
+ 'Tekstdeel':('VrijeTekst',0),'Divisie':('VrijeTekst',1),
+ 'Divisietekst':('VrijeTekst',2),'Hoofdlijn':('VrijeTekst',3),
+ 'Kaart':('Kaarten',0)}
+# Regelingsgebied/Pons zijn eigen secties direct onder OwObjecten (geen wrapper).
+# VrijeTekst = de IMOW-objectkant van omgevingsvisie/programma (vrijetekst-
+# structuur). SymbolisatieItem is in de laatste IMOW vervallen.
+SECTIE_ORDER=['Regels','Normen','Activiteiten','Locaties','Gebiedsaanwijzingen',
+ 'Regelingsgebied','Pons','VrijeTekst','Kaarten']
+SINGLE={'Regelingsgebied','Pons'}  # object is zelf de sectie, geen container
 
 def lees_objecten():
     buckets={}  # sectie -> list of (bucket-key, element)
@@ -152,8 +163,6 @@ def main():
     broot=etree.parse(str(besluit)).getroot()
     reg=next(e for e in broot.iter() if L(e.tag) in REGELINGTYPE)
     structuur=REGELINGTYPE[L(reg.tag)]
-    lich=next(e for e in reg.iter() if L(e.tag)=='Lichaam')
-    opschrift=next((e for e in reg.iter() if L(e.tag)=='RegelingOpschrift'),None)
 
     # manifest-ow: workid + doel + bestanden
     mow=etree.parse(str(OPDRACHT/'manifest-ow.xml')).getroot()
@@ -182,19 +191,28 @@ def main():
     if regm is not None:
         etree.SubElement(meta,f"{{{DATA}}}Regeling").append(deepcopy(regm))
 
+    # tekstlaag: alle STOP-tekst-kinderen van de regeling verbatim spiegelen
+    # (RegelingOpschrift, Lichaam, Bijlage*, Toelichting/ArtikelgewijzeToelichting,
+    # ...) — geen whitelist, zodat niets structureels wegvalt.
     tekst=T('Tekst',ns=TEKST); tekst.set('structuur',structuur)
-    if opschrift is not None: tekst.append(mirror_tekst(opschrift))
-    tekst.append(mirror_tekst(lich))
+    for k,v in reg.attrib.items():        # componentnaam/wordt/schemaversie verbatim
+        tekst.set(k,v)
+    for c in reg:
+        if isinstance(c.tag,str) and c.tag.startswith(f"{{{STOP_TEKST}}}"):
+            tekst.append(mirror_tekst(c))
     R.append(tekst)
 
     buckets=lees_objecten()
     ow=T('OwObjecten')
-    for sec in ('Regels','Normen','Activiteiten','Locaties','Gebiedsaanwijzingen'):
+    for sec in SECTIE_ORDER:
         if sec not in buckets: continue
-        s=T(sec)
-        for key,el in sorted(buckets[sec],key=lambda x:x[0]):
-            s.append(el)
-        ow.append(s)
+        items=[el for key,el in sorted(buckets[sec],key=lambda x:x[0])]
+        if sec in SINGLE:
+            for el in items: ow.append(el)      # direct kind van OwObjecten
+        else:
+            s=T(sec)
+            for el in items: s.append(el)
+            ow.append(s)
     R.append(ow)
 
     # storm-gio-bestanden: IO-metadata + symbolisatie + geometrie bundelen

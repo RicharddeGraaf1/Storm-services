@@ -76,6 +76,114 @@ Daarom is **`integrated ↔ SimplicIT-DB` een near-isomorfe POCO-mapping**, geen
 zware transformatie. De opslag zelf (Mongo, discriminator `_t`, GridFS) doet
 SimplicIT al.
 
+## 4a. De SimplicIT.Project JSON-vorm (bij import)
+
+Het aggregate `SimplicIT.Domain.Projecten.Project` (`Project.cs`) heeft **twee**
+JSON-verschijningsvormen — niet verwarren:
+
+| | **Opslag (MongoDB/BSON)** — `SimplicIT.Mongo/BsonRegistrations.cs` | **API-wire (System.Text.Json)** |
+|---|---|---|
+| Veldnamen | **PascalCase** (`AutoMap`, geen camelCase-pack) | **camelCase** (`JsonSerializerDefaults.Web`) |
+| `_id` | `ObjectId` (`StringObjectIdGenerator`) | `id` als string |
+| Enums | **int32** (default) | **string** (`JsonStringEnumConverter`) |
+| Type-discriminator | `_t` = klassenaam | `documentComponentType` / `contentBlokType` / `kind` (`[JsonPolymorphic]`) |
+
+De HTTP-respons is bovendien **gesplitst**: `ProjectDetailDto`
+(`SimplicIT.Api/Dtos/`) geeft metadata + OW-objecten + toelichtingen **zonder**
+de `regeling`-boom; die boom komt via een aparte regeling-projectie
+(`DocumentComponentDto`). In Mongo staat alles in **één** document.
+
+**Vorm (wire, ingekort):**
+
+```jsonc
+{
+  "id": "…ObjectId…", "orgId": "…", "naam": "",            // naam NIET gevuld bij import
+  "type": "omgevingsplan", "soortRegeling": "…", "bevoegdGezagCode": "gm0297",
+  "frbrWork": "/akn/nl/act/gm0297/2020/omgevingsplan", "frbrExpression": "…@…",
+  "status": "Ready", "modus": "Bewerken",
+  "ambtsgebied": { "identificatie": "…", "naam": "…", "bestuurlijkeGrenzenId": "GM0297" },
+  "omgevingsnormen": [ { "identificatie": "…", "naam": "Bouwhoogte", "eenheid": "m",
+    "groep": "…", "normwaarden": [ { "identificatie": "…", "kwantitatieveWaarde": "13",
+    "kwalitatieveWaarde": null, "locatieRefs": ["nl.imow-…gebied…"] } ] } ],
+  "gebiedsaanwijzingen": [ { "identificatie": "…", "naam": "…", "type": "…",
+    "groep": "…", "locatieRef": "nl.imow-…gebied…" } ],
+  "regelingsgebied": null, "ponsen": [], "hoofdlijnen": [],   // mapping ontbreekt in importer
+  "activiteiten": [ { "id": "…", "naam": "Bouwen", "identificatie": "nl.imow-…activiteit.Bouwen",
+    "bovenliggendeIdentificatie": "…", "groep": "…/BouwactiviteitRuimtelijk",
+    "type": "Activiteit", "juridischeRegelRefs": ["nl.imow-…juridischeregel…"] } ],
+  "regeling": {
+    "opschrift": [ { "tekst": "Omgevingsplan Zaltbommel", "soort": "Tekst" } ],
+    "documentComponenten": [ {
+      "documentComponentType": "Lichaam", "eId": "body", "wId": "body",
+      "documentComponenten": [ {
+        "documentComponentType": "Hoofdstuk", "eId": "chp_1", "wId": "…",
+        "kop": { "label": "Hoofdstuk", "nummer": "1", "opschrift": [ { "tekst": "…", "soort": "Tekst" } ] },
+        "documentComponenten": [ {
+          "documentComponentType": "Artikel", "eId": "chp_1__art_1.1", "wId": "…",
+          "kop": { "label": "Artikel", "nummer": "1.1", "opschrift": [ … ] },
+          "owRegeltekstIdentificatie": "nl.imow-…regeltekst…",       // annotatie ÓP het artikel
+          "owJuridischeRegelIdentificatie": "nl.imow-…juridischeregel…",
+          "activiteitAanduidingen": [ { "activiteitIdentificatie": "…", "activiteitNaam": "Bouwen",
+            "regelkwalificatie": "…" } ],
+          "informatieobjectAanduidingen": [], "themas": ["…"],
+          "leden": [ {
+            "documentComponentType": "Lid", "eId": "…", "wId": "…", "nummer": "1",
+            "owJuridischeRegelIdentificatie": "…", "activiteitAanduidingen": [ … ],
+            "contentBlokken": [ {
+              "contentBlokType": "Alinea", "uId": "…",
+              "content": [
+                { "tekst": "Dit artikel geldt voor ", "soort": "Tekst" },
+                { "tekst": "bouwwerken", "soort": "Tekst",
+                  "marks": [ { "kind": "intRef", "ref": "nl.imow-…" } ] },
+                { "tekst": ".", "soort": "Tekst" } ] } ] } ] } ] } ] } ]
+  },
+  "algemeneToelichting": [ … ], "artikelsgewijzeToelichting": [ … ],
+  "bestanden": [ { "id": "…", "type": "gml", "naam": "Bouwhoogte.gml",
+    "gridfsId": "…", "frbrExpression": "…", "mimeType": "application/gml+xml" } ],
+  "importWarnings": [ … ], "importNormalizations": [ … ],
+  "importSource": { "soort": "OwZip", "bestandsnaam": "…", "identificatie": "…" },
+  "members": [], "opmerkingen": [], "createdAt": "…", "updatedAt": "…"
+}
+```
+
+**Lagen:** `regeling` → `Lichaam`/`Bijlage` → structuur (`Hoofdstuk`/`Afdeling`/
+`Divisie`…) → `Artikel`/`Lid`/`Divisietekst` → `ContentBlok` (`Alinea`/`Lijst`/
+`Tabel`/`Figuur`/`Begrippenlijst`/`Kadertekst`) → `TekstRun` (+ `marks`:
+strong/italic/intRef/intIoRef/extIoRef…). OW-objecten als platte lijsten;
+locaties alleen als **string-refs** (`locatieRef`/`locatieRefs`) — géén apart
+`Locatie`-object, de GML zit in GridFS via `bestanden`.
+
+**Mapping storm-integrated → Project (concreet):**
+
+| storm-integrated | `Project`-veld (wire) |
+|---|---|
+| regeling-opschrift | `regeling.opschrift` (`TekstRun[]`) |
+| tekstlichaam | `regeling.documentComponenten` (één `Lichaam` + 0..n `Bijlage`) |
+| artikel/lid | `documentComponentType: "Artikel" \| "Lid"` met `eId`/`wId`/`kop` |
+| annotatie op de regel | `owRegeltekstIdentificatie`, `owJuridischeRegelIdentificatie`, `activiteitAanduidingen[]`, `informatieobjectAanduidingen[]`, `themas[]` op Artikel/Lid |
+| inline-opmaak + refs | `TekstRun.marks[]` (`kind` = strong/…/intRef/extRef/intIoRef/extIoRef) |
+| activiteit | `activiteiten[]` (`identificatie`, `groep`, `type`, `bovenliggendeIdentificatie`, `juridischeRegelRefs[]`) |
+| omgevingsnorm/-waarde | `omgevingsnormen[]` + geneste `normwaarden[]` (met `locatieRefs[]`) |
+| gebiedsaanwijzing | `gebiedsaanwijzingen[]` (`locatieRef`) |
+| ambtsgebied / regelingsgebied / pons / hoofdlijn | `ambtsgebied`, `regelingsgebied`, `ponsen[]`, `hoofdlijnen[]` |
+| geometrie (GIO) | `bestanden[]` (`type: "gml"`, `gridfsId`, `frbrExpression`) |
+
+**Wat de DSO-import wél/niet vult** (`ZipImportService.LeesOwZip` +
+`IProjectRepository.FillFromImport` `$set`-lijst):
+
+- **Wel:** `type`, `soortRegeling`, `frbrWork/Expression`, `bevoegdGezagCode`
+  (van de organisatie, niet uit het pakket), `regeling`, alle toelichtingen,
+  `activiteiten`, `gebiedsaanwijzingen`, `omgevingsnormen`(+`normwaarden`),
+  `ambtsgebied`, `bestanden`, `importWarnings`, `importNormalizations`.
+- **Niet (blijft leeg/`null`):** `naam` (bewust), **`regelingsgebied`, `ponsen`,
+  `hoofdlijnen`** (mapping ontbreekt in de importer, terwijl de velden wél
+  bestaan én worden weggeschreven), `versienummer`, `datum`, `autoNummering`,
+  `members`, `opmerkingen`, `bewerkingen`.
+
+> **Gat voor de adapter:** `storm-volledig` draagt `Regelingsgebied`/`Pons`
+> (en de VrijeTekst-`Hoofdlijn`) nu wél verliesloos; een `volledig → SimplicIT`-
+> adapter kan die drie lijsten dus vullen waar de huidige DSO-import ze leeg laat.
+
 ## 5. C#-projectstructuur in Storm-services
 
 Nieuwe map `dotnet/` met `Storm.sln`:

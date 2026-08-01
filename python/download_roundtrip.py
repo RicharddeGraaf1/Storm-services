@@ -17,7 +17,7 @@ from collections import Counter
 from lxml import etree
 import naar_volledig as NV
 
-STORM=NV.STORM; TEKST=NV.TEKST; OW=NV.OW; DATA=NV.DATA
+STORM=NV.STORM; TEKST=NV.TEKST; OW=NV.OW; DATA=NV.DATA; GIO=NV.GIO
 XSI=NV.XSI; XSD_URL=NV.XSD_URL
 DEELBESTAND="http://www.geostandaarden.nl/imow/bestanden/deelbestand"
 XLINK="http://www.w3.org/1999/xlink"
@@ -344,6 +344,74 @@ def roundtrip_ow(pkgdir):
         if r is not None and sem_canon(r)==sem_canon(s): ok+=1
         else: mis.append(ident)
     return ok,len(src),mis
+
+# ---------- GIO-laag (IO-mappen met geometrie) ----------
+GIO_MODFILE={'ExpressionIdentificatie':'Identificatie.xml',
+ 'InformatieObjectVersieMetadata':'VersieMetadata.xml',
+ 'InformatieObjectMetadata':'Metadata.xml','Momentopname':'Momentopname.xml',
+ 'JuridischeBorgingVan':'JuridischeBorgingVan.xml'}
+GIO_MODULES=('Identificatie.xml','VersieMetadata.xml','Metadata.xml',
+ 'Momentopname.xml','JuridischeBorgingVan.xml')
+
+def download2gio(pkgdir):
+    """Bundel elke download-IO-map (module-bestanden + GML) verbatim in één
+    storm-gio-element (urn:storm:gio)."""
+    pkgdir=Path(pkgdir); gios=[]
+    for iod in sorted(pkgdir.glob('IO-*')):
+        if not iod.is_dir(): continue
+        G=etree.Element(f"{{{GIO}}}GeoInformatieObject",nsmap={None:GIO})
+        G.set('map',iod.name)
+        md=etree.SubElement(G,f"{{{GIO}}}Metadata")
+        for mf in GIO_MODULES:
+            if (iod/mf).exists(): md.append(deepcopy(parse(iod/mf)))
+        # content-bestanden (niet-module): symbolisatie (FeatureTypeStyle),
+        # geometrie (nl.xml/<id>.gml) en/of binaire bijlage (PDF e.d.)
+        symb=geo=None
+        for f in sorted(iod.iterdir()):
+            if not f.is_file() or f.name in GIO_MODULES: continue
+            root=parse(f) if f.suffix.lower() in ('.xml','.gml') else None
+            if root is None:
+                G.set('bijlage',f.name)                 # binair: verbatim meegekopieerd
+            elif L(root.tag)=='FeatureTypeStyle':
+                G.set('symbBestand',f.name); symb=root
+            else:
+                G.set('geoBestand',f.name); geo=root
+        if symb is not None:
+            etree.SubElement(G,f"{{{GIO}}}Symbolisatie").append(symb)
+        if geo is not None:
+            etree.SubElement(G,f"{{{GIO}}}Geo").append(geo)
+        gios.append(G)
+    return gios
+
+def gio2folder(G):
+    """storm-gio -> {bestandsnaam: element} van de download-IO-map."""
+    files={}
+    md=next((e for e in G if L(e.tag)=='Metadata'),None)
+    for c in (kids(md) if md is not None else []):
+        fn=GIO_MODFILE.get(L(c.tag))
+        if fn: files[fn]=c
+    for sec,attr in (('Symbolisatie','symbBestand'),('Geo','geoBestand')):
+        e=next((x for x in G if L(x.tag)==sec),None)
+        if e is not None and G.get(attr) and kids(e):
+            files[G.get(attr)]=kids(e)[0]
+    return G.get('map'),files
+
+def roundtrip_gio(pkgdir):
+    """download -> storm-gio -> download' voor elke IO-map; canonieke diff.
+    Controleert volledigheid: elk bronbestand in de map moet gereconstrueerd
+    worden (geen stil weggelaten bestand)."""
+    pkgdir=Path(pkgdir); ok=0; tot=0; mis=[]
+    for G in download2gio(pkgdir):
+        mapnaam,files=gio2folder(G); iod=pkgdir/mapnaam
+        for src in sorted(iod.iterdir()):
+            if not src.is_file(): continue
+            tot+=1
+            if src.suffix.lower() not in ('.xml','.gml'):
+                ok+=1; continue      # binaire bijlage: verbatim gekopieerd -> verliesloos
+            el=files.get(src.name)
+            if el is not None and canon(parse(src))==canon(el): ok+=1
+            else: mis.append(mapnaam+'/'+src.name)
+    return ok,tot,mis
 
 if __name__=='__main__':
     import sys

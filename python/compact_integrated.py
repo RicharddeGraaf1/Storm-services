@@ -273,6 +273,8 @@ def transform(compact_path):
         for at in kids(vt):
             if L(at.tag)=='ArtikelgewijzeToelichting':
                 wrap=I('ArtikelsgewijzeToelichting')
+                kop=ch(at,'Kop')
+                if kop is not None: wrap.append(kop_to_int(kop))   # eigen kop van de toelichting
                 for c in kids(at):
                     if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','Bijlage'}:
                         wrap.append(reshape_doccomp(c, ann, act_naam))
@@ -280,7 +282,7 @@ def transform(compact_path):
 
     # pools
     if co is not None:
-        amb=None
+        amb=None; locaties=[]
         loc=ch(co,'Locaties')
         for o in (kids(loc) if loc is not None else []):
             if L(o.tag)=='Ambtsgebied':
@@ -288,6 +290,12 @@ def transform(compact_path):
                 amb.set('identificatie', ct(o,'identificatie') or '')
                 amb.set('naam', ct(o,'naam') or ct(o,'identificatie') or 'ambtsgebied')
                 amb.set('bestuurlijkeGrenzenId', ct(o,'bestuurlijkeGrenzenId') or '')
+            elif L(o.tag)=='Locatie':
+                le=I('Locatie'); le.set('identificatie', ct(o,'identificatie') or '')
+                if ct(o,'noemer'): le.set('noemer', ct(o,'noemer'))
+                gr=ch(o,'geometrieRef')
+                if gr is not None and gr.get('ref'): le.set('geometrieRef', gr.get('ref'))
+                locaties.append(le)
         if amb is not None: R.append(amb)
         rg=ch(co,'Regelingsgebied')
         if rg is not None:
@@ -295,6 +303,10 @@ def transform(compact_path):
             la=ch(rg,'locatieaanduiding')
             if la is not None: e.set('locatieRef',la.get('ref'))
             R.append(e)
+        if locaties:
+            lv=I('Locaties')
+            for le in locaties: lv.append(le)
+            R.append(lv)
         ga=ch(co,'Gebiedsaanwijzingen')
         if ga is not None and kids(ga):
             gv=I('Gebiedsaanwijzingen')

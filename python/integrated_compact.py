@@ -248,6 +248,8 @@ def transform(int_path):
     at=ch(root,'ArtikelsgewijzeToelichting')
     if at is not None:
         agt=T('ArtikelgewijzeToelichting')
+        kop=ch(at,'Kop')
+        if kop is not None: agt.append(stop_kop(kop))    # eigen kop van de toelichting
         for c in kids(at):
             if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','Bijlage'}:
                 agt.append(reshape_back(c, regels_out))
@@ -299,11 +301,18 @@ def transform(int_path):
         for a in kids(ga):
             gv.append(obj_from_attrs('Gebiedsaanwijzing', a, ('identificatie','naam','type','groep'), 'locatieRef','locatieaanduiding'))
         co.append(gv)
-    # Locaties (Ambtsgebied) — integrated heeft geen Locatie-objecten
-    amb=ch(root,'Ambtsgebied')
-    if amb is not None:
+    # Locaties: Ambtsgebied + Locatie-objecten
+    amb=ch(root,'Ambtsgebied'); intloc=ch(root,'Locaties')
+    if amb is not None or (intloc is not None and kids(intloc)):
         lv=C('Locaties')
-        lv.append(obj_from_attrs('Ambtsgebied', amb, ('identificatie','naam','bestuurlijkeGrenzenId')))
+        if amb is not None:
+            lv.append(obj_from_attrs('Ambtsgebied', amb, ('identificatie','naam','bestuurlijkeGrenzenId')))
+        for o in (kids(intloc) if intloc is not None else []):
+            if L(o.tag)!='Locatie': continue
+            le=C('Locatie'); le.append(C('identificatie', o.get('identificatie') or ''))
+            if o.get('noemer'): le.append(C('noemer', o.get('noemer')))
+            if o.get('geometrieRef'): le.append(_cref('geometrieRef', o.get('geometrieRef')))
+            lv.append(le)
         co.append(lv)
     # Regelingsgebied
     rg=ch(root,'Regelingsgebied')

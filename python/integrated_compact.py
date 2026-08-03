@@ -224,6 +224,7 @@ def obj_from_attrs(name, src, fields, refattr=None, refname=None):
     for f in fields:
         if src.get(f) is not None: o.append(C(f, src.get(f)))
     if refattr and src.get(refattr): o.append(_cref(refname, src.get(refattr)))
+    if src.get('gioRef'): o.append(_cref('gioRef', src.get('gioRef')))
     return o
 
 def transform(int_path):
@@ -291,6 +292,7 @@ def transform(int_path):
                     if w.get(f) is not None: nw.append(C(f, w.get(f)))
                 for lr in kids(w):
                     if L(lr.tag)=='LocatieRef': nw.append(_cref('locatieaanduiding', lr.text))
+                if w.get('gioRef'): nw.append(_cref('gioRef', w.get('gioRef')))
                 o.append(nw)
             nv.append(o)
         co.append(nv)
@@ -312,6 +314,7 @@ def transform(int_path):
             le=C('Locatie'); le.append(C('identificatie', o.get('identificatie') or ''))
             if o.get('noemer'): le.append(C('noemer', o.get('noemer')))
             if o.get('geometrieRef'): le.append(_cref('geometrieRef', o.get('geometrieRef')))
+            if o.get('gioRef'): le.append(_cref('gioRef', o.get('gioRef')))
             lv.append(le)
         co.append(lv)
     # Regelingsgebied
@@ -332,6 +335,16 @@ def transform(int_path):
         for a in kids(hv):
             hvv.append(obj_from_attrs('Hoofdlijn', a, ('identificatie','naam','soort','type')))
         co.append(hvv)
+    # Gios
+    gios=ch(root,'Gios')
+    if gios is not None and kids(gios):
+        gv=C('Gios')
+        for a in kids(gios):
+            g=C('Gio'); g.append(C('identificatie', a.get('identificatie') or ''))
+            if a.get('naam'): g.append(C('naam', a.get('naam')))
+            if a.get('geometrieBestand'): g.append(C('geometrieBestand', a.get('geometrieBestand')))
+            gv.append(g)
+        co.append(gv)
     # Bestanden
     bs=ch(root,'Bestanden')
     if bs is not None and kids(bs):

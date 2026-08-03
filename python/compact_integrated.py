@@ -199,8 +199,13 @@ def reshape_doccomp(el, ann, act_naam):
         # leden
         for c in kids(el):
             if L(c.tag)=='Lid': out.append(reshape_doccomp(c, ann, act_naam))
-        # annotatie vouwen
+        # annotatie vouwen — regel MOET op het lid als het artikel leden heeft
         a=ann.get(out.get('wId'))
+        heeft_leden=any(L(c.tag)=='Lid' for c in kids(el))
+        if a and ln=='Artikel' and heeft_leden:
+            raise ValueError(
+                f"Juridische regel {a.get('owJuridischeRegel')} staat op Artikel "
+                f"{out.get('wId')} dat leden heeft; een regel moet dan op het lid staan.")
         if a:
             if a.get('owRegeltekst'): out.set('owRegeltekstIdentificatie',a['owRegeltekst'])
             if a.get('owJuridischeRegel'): out.set('owJuridischeRegelIdentificatie',a['owJuridischeRegel'])
@@ -295,6 +300,8 @@ def transform(compact_path):
                 if ct(o,'noemer'): le.set('noemer', ct(o,'noemer'))
                 gr=ch(o,'geometrieRef')
                 if gr is not None and gr.get('ref'): le.set('geometrieRef', gr.get('ref'))
+                gio=ch(o,'gioRef')
+                if gio is not None and gio.get('ref'): le.set('gioRef', gio.get('ref'))
                 locaties.append(le)
         if amb is not None: R.append(amb)
         rg=ch(co,'Regelingsgebied')
@@ -316,6 +323,8 @@ def transform(compact_path):
                     if ct(o,f) is not None: e.set(f,ct(o,f))
                 la=ch(o,'locatieaanduiding')
                 if la is not None: e.set('locatieRef',la.get('ref'))
+                gio=ch(o,'gioRef')
+                if gio is not None and gio.get('ref'): e.set('gioRef', gio.get('ref'))
                 gv.append(e)
             R.append(gv)
         nm=ch(co,'Normen')
@@ -333,6 +342,8 @@ def transform(compact_path):
                     for la in kids(w):
                         if L(la.tag)=='locatieaanduiding':
                             lr=I('LocatieRef'); lr.text=la.get('ref'); nw.append(lr)
+                    gio=ch(w,'gioRef')
+                    if gio is not None and gio.get('ref'): nw.set('gioRef', gio.get('ref'))
                     e.append(nw)
                 nv.append(e)
             R.append(nv)
@@ -368,6 +379,15 @@ def transform(compact_path):
                         rr=I('JuridischeRegelRef'); rr.text=jr.get('ref'); e.append(rr)
                 avv.append(e)
             R.append(avv)
+        gios=ch(co,'Gios')
+        if gios is not None and kids(gios):
+            gv=I('Gios')
+            for o in kids(gios):
+                g=I('Gio'); g.set('identificatie', ct(o,'identificatie') or '')
+                if ct(o,'naam'): g.set('naam', ct(o,'naam'))
+                if ct(o,'geometrieBestand'): g.set('geometrieBestand', ct(o,'geometrieBestand'))
+                gv.append(g)
+            R.append(gv)
         bs=ch(co,'Bestanden')
         if bs is not None and kids(bs):
             bv=I('Bestanden')

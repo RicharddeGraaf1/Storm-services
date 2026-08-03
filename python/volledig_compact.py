@@ -40,6 +40,36 @@ TEKST_SECTIES={'RegelingOpschrift','Lichaam','Bijlage','ArtikelgewijzeToelichtin
 LOC_TYPES={'Gebied','Gebiedengroep','Punt','Puntengroep','Lijn','Lijnengroep'}
 REGEL_TYPES={'RegelVoorIedereen','Instructieregel','Omgevingswaarderegel'}
 
+# locatie-identificatie -> GIO-FRBRWork (gevuld in transform op basis van de storm-gio's)
+_GIO={}
+
+def build_gio_index(vol_dir, root):
+    """GUID->GIO-frbr uit de storm-gio's, en locatie-id->GIO-frbr via de
+    GeometrieRef-GUID van elk Gebied (groepen erven van hun eerste lid)."""
+    gio_by_guid={}; gios=[]
+    for gf in sorted(Path(vol_dir).glob('*.storm-gio.xml')):
+        g=etree.parse(str(gf)).getroot()
+        frbr=next((e.text for e in g.iter() if L(e.tag)=='FRBRWork'),None)
+        if not frbr: continue
+        gios.append((frbr, gf.name.replace('.storm-gio.xml',''), gf.name.replace('.storm-gio.xml','.gml')))
+        for e in g.iter():
+            if isinstance(e.tag,str) and L(e.tag)=='id' and e.text:
+                gio_by_guid[e.text.strip()]=frbr
+    gio_by_loc={}
+    ow=child(root,'OwObjecten'); locs=child(ow,'Locaties') if ow is not None else None
+    for o in (kids(locs) if locs is not None else []):
+        if L(o.tag)=='Gebied':
+            geo=child(o,'geometrie')
+            gr=child(geo,'GeometrieRef') if geo is not None else None
+            if gr is not None and gr.get('ref') in gio_by_guid:
+                gio_by_loc[childtext(o,'identificatie')]=gio_by_guid[gr.get('ref')]
+    for o in (kids(locs) if locs is not None else []):
+        if L(o.tag)=='Gebiedengroep':
+            for ge in kids(o):
+                if L(ge.tag)=='groepselement' and ge.get('ref') in gio_by_loc:
+                    gio_by_loc[childtext(o,'identificatie')]=gio_by_loc[ge.get('ref')]; break
+    return gios, gio_by_loc
+
 # ---------- tekstlaag: verbatim overnemen (marks/opschrift behouden) ----------
 def map_tekst(vol_tekst):
     t=C('Tekst'); t.set('structuur', vol_tekst.get('structuur','compact'))
@@ -104,9 +134,10 @@ def map_norm(src):
         for fld in ('kwantitatieveWaarde','kwalitatieveWaarde'):
             v=childtext(nw,fld)
             if v: w.append(C(fld, v))
-        for la in kids(nw):
-            if L(la.tag)=='locatieaanduiding' and la.get('ref'):
-                w.append(Cref('locatieaanduiding', la.get('ref')))
+        refs=[la.get('ref') for la in kids(nw) if L(la.tag)=='locatieaanduiding' and la.get('ref')]
+        for ref in refs: w.append(Cref('locatieaanduiding', ref))
+        f=next((_GIO[r] for r in refs if r in _GIO), None)
+        if f: w.append(Cref('gioRef', f))
         n.append(w)
     return n
 
@@ -118,6 +149,8 @@ def map_gebiedsaanwijzing(src):
     g.append(C('groep', childtext(src,'groep')))
     la=child(src,'locatieaanduiding')     # compact: één (volledig kan er meer; eerste)
     g.append(Cref('locatieaanduiding', la.get('ref') if la is not None else ''))
+    f=_GIO.get(la.get('ref')) if la is not None else None
+    if f: g.append(Cref('gioRef', f))
     return g
 
 def map_locatie(src):
@@ -129,6 +162,8 @@ def map_locatie(src):
     if geo is not None:
         gr=child(geo,'GeometrieRef')
         if gr is not None and gr.get('ref'): lo.append(Cref('geometrieRef', gr.get('ref')))
+    f=_GIO.get(childtext(src,'identificatie'))
+    if f: lo.append(Cref('gioRef', f))
     return lo
 
 def map_ambtsgebied(src):
@@ -147,6 +182,8 @@ def map_ambtsgebied(src):
 def transform(vol_dir):
     vol_dir=Path(vol_dir)
     root=etree.parse(str(vol_dir/'storm-volledig.xml')).getroot()
+    gio_list, gio_by_loc = build_gio_index(vol_dir, root)
+    _GIO.clear(); _GIO.update(gio_by_loc)
     ident=child(root,'Identificatie')
     meta=child(root,'Metadata')
     regmeta=None
@@ -267,11 +304,22 @@ def transform(vol_dir):
             co.append(hv)
         # Kaarten: bewust weg
 
+    # GIO-catalogus
+    if gio_list:
+        gv=C('Gios')
+        for frbr,naam,gml in gio_list:
+            gio=C('Gio')
+            gio.append(C('identificatie', frbr))
+            gio.append(C('naam', naam))
+            gio.append(C('geometrieBestand', gml))
+            gv.append(gio)
+        co.append(gv)
+
     # Bestanden uit de storm-gio's
-    gios=sorted(vol_dir.glob('*.storm-gio.xml'))
-    if gios:
+    gml_files=sorted(vol_dir.glob('*.storm-gio.xml'))
+    if gml_files:
         bv=C('Bestanden')
-        for gf in gios:
+        for gf in gml_files:
             g=etree.parse(str(gf)).getroot()
             idf=next((e for e in g.iter() if L(e.tag)=='Identificatie'),None)
             frbr=childtext(idf,'FRBRWork') if idf is not None else None

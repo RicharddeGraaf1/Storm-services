@@ -171,6 +171,9 @@ def reshape_doccomp(el, ann, act_naam):
         return out
     if ln in STRUCTUUR or ln=='Bijlage':
         out=I(ln); out.set('eId',el.get('eId') or uid()); out.set('wId',el.get('wId') or out.get('eId'))
+        st=ch(el,'Gereserveerd')
+        if st is None: st=ch(el,'Vervallen')
+        if st is not None: out.set('aantekening', L(st.tag))
         kop=ch(el,'Kop')
         if kop is not None: out.append(kop_to_int(kop))
         for c in kids(el):
@@ -179,6 +182,9 @@ def reshape_doccomp(el, ann, act_naam):
         return out
     if ln in ('Artikel','Lid','Divisietekst'):
         out=I(ln); out.set('eId',el.get('eId') or uid()); out.set('wId',el.get('wId') or out.get('eId'))
+        st=ch(el,'Gereserveerd')
+        if st is None: st=ch(el,'Vervallen')
+        if st is not None: out.set('aantekening', L(st.tag))
         if ln=='Lid':
             num=ct(el,'LidNummer') or el.get('nummer') or '1'
             out.set('nummer',num)
@@ -264,6 +270,13 @@ def transform(compact_path):
         if lich is not None: R.append(reshape_doccomp(lich, ann, act_naam))
         for bij in kids(vt):
             if L(bij.tag)=='Bijlage': R.append(reshape_doccomp(bij, ann, act_naam))
+        for at in kids(vt):
+            if L(at.tag)=='ArtikelgewijzeToelichting':
+                wrap=I('ArtikelsgewijzeToelichting')
+                for c in kids(at):
+                    if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','Bijlage'}:
+                        wrap.append(reshape_doccomp(c, ann, act_naam))
+                if kids(wrap): R.append(wrap)
 
     # pools
     if co is not None:

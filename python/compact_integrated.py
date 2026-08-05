@@ -334,6 +334,8 @@ def transform(compact_path):
                 e=I('Omgevingsnorm')
                 for f in ('identificatie','naam','type','eenheid','groep'):
                     if ct(o,f) is not None: e.set(f,ct(o,f))
+                gio=ch(o,'gioRef')
+                if gio is not None and gio.get('ref'): e.set('gioRef', gio.get('ref'))
                 for w in kids(o):
                     if L(w.tag)!='Normwaarde': continue
                     nw=I('Normwaarde')
@@ -342,8 +344,6 @@ def transform(compact_path):
                     for la in kids(w):
                         if L(la.tag)=='locatieaanduiding':
                             lr=I('LocatieRef'); lr.text=la.get('ref'); nw.append(lr)
-                    gio=ch(w,'gioRef')
-                    if gio is not None and gio.get('ref'): nw.set('gioRef', gio.get('ref'))
                     e.append(nw)
                 nv.append(e)
             R.append(nv)

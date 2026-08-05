@@ -127,6 +127,7 @@ def map_norm(src):
     if eh: n.append(C('eenheid', eh))
     n.append(C('groep', childtext(src,'groep')))
     nww=child(src,'normwaarde')
+    waardes=[]; gio=None
     for nw in (kids(nww) if nww is not None else []):
         if L(nw.tag)!='Normwaarde': continue
         w=C('Normwaarde')
@@ -136,9 +137,12 @@ def map_norm(src):
             if v: w.append(C(fld, v))
         refs=[la.get('ref') for la in kids(nw) if L(la.tag)=='locatieaanduiding' and la.get('ref')]
         for ref in refs: w.append(Cref('locatieaanduiding', ref))
-        f=next((_GIO[r] for r in refs if r in _GIO), None)
-        if f: w.append(Cref('gioRef', f))
-        n.append(w)
+        if gio is None:
+            gio=next((_GIO[r] for r in refs if r in _GIO), None)
+        waardes.append(w)
+    # gioRef op norm-niveau (uit de locaties van de normwaarden), vóór de Normwaarden
+    if gio: n.append(Cref('gioRef', gio))
+    for w in waardes: n.append(w)
     return n
 
 def map_gebiedsaanwijzing(src):

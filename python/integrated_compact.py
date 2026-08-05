@@ -285,6 +285,7 @@ def transform(int_path):
             o=C('Omgevingsnorm')
             for f in ('identificatie','naam','type','eenheid','groep'):
                 if a.get(f) is not None: o.append(C(f, a.get(f)))
+            if a.get('gioRef'): o.append(_cref('gioRef', a.get('gioRef')))
             for w in kids(a):
                 if L(w.tag)!='Normwaarde': continue
                 nw=C('Normwaarde')
@@ -292,7 +293,6 @@ def transform(int_path):
                     if w.get(f) is not None: nw.append(C(f, w.get(f)))
                 for lr in kids(w):
                     if L(lr.tag)=='LocatieRef': nw.append(_cref('locatieaanduiding', lr.text))
-                if w.get('gioRef'): nw.append(_cref('gioRef', w.get('gioRef')))
                 o.append(nw)
             nv.append(o)
         co.append(nv)

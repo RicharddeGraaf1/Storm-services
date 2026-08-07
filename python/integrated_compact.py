@@ -258,6 +258,8 @@ def transform(int_path):
     at=ch(root,'ArtikelsgewijzeToelichting')
     if at is not None:
         agt=T('ArtikelgewijzeToelichting')
+        if at.get('eId'): agt.set('eId', at.get('eId'))   # pre-pass zette wId=uId
+        if at.get('wId'): agt.set('wId', at.get('wId'))
         kop=ch(at,'Kop')
         if kop is not None: agt.append(stop_kop(kop))    # eigen kop van de toelichting
         for c in kids(at):

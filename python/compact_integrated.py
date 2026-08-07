@@ -34,6 +34,9 @@ _uid=[0]
 def uid():
     _uid[0]+=1; return f"uid-{_uid[0]:04d}"
 
+# geflagde overtredingen: JuridischeRegel op een Artikel-met-leden (zie reshape_doccomp)
+regel_op_artikel=[]
+
 # ---------- tekst: STOP -> ContentBlok/TekstRun ----------
 def runs(el, active=None):
     """Tekstregel (mixed) -> lijst integrated TekstRun-elementen."""
@@ -269,13 +272,14 @@ def reshape_doccomp(el, ann, act_naam):
         # leden
         for c in kids(el):
             if L(c.tag)=='Lid': out.append(reshape_doccomp(c, ann, act_naam))
-        # annotatie vouwen — regel MOET op het lid als het artikel leden heeft
+        # annotatie vouwen — een regel HOORT op het lid als het artikel leden heeft.
+        # Productiedata schendt dit soms (regel op artikel-met-leden); dat FLAGGEN we
+        # (regel_op_artikel), maar we crashen niet: we plaatsen de annotatie zoals de
+        # bron zegt (op het artikel) en gaan door.
         a=ann.get(out.get('wId'))
         heeft_leden=any(L(c.tag)=='Lid' for c in kids(el))
         if a and ln=='Artikel' and heeft_leden:
-            raise ValueError(
-                f"Juridische regel {a.get('owJuridischeRegel')} staat op Artikel "
-                f"{out.get('wId')} dat leden heeft; een regel moet dan op het lid staan.")
+            regel_op_artikel.append((out.get('wId'), a.get('owJuridischeRegel')))
         if a:
             if a.get('owRegeltekst'): out.set('owRegeltekstIdentificatie',a['owRegeltekst'])
             if a.get('owJuridischeRegel'): out.set('owJuridischeRegelIdentificatie',a['owJuridischeRegel'])
@@ -302,6 +306,7 @@ def pool_obj(name, src, attr_fields, ref_children=(), str_children=()):
     return o
 
 def transform(compact_path):
+    regel_op_artikel.clear()
     root=etree.parse(str(compact_path)).getroot()
     R=etree.Element(f"{{{INT}}}Regeling", nsmap={None:INT,'xsi':XSI})
     R.set('variant','integrated'); R.set('schemaversie','0.6.0')
@@ -354,6 +359,8 @@ def transform(compact_path):
         for at in kids(vt):
             if L(at.tag)=='ArtikelgewijzeToelichting':
                 wrap=I('ArtikelsgewijzeToelichting')
+                if at.get('eId'): wrap.set('eId', at.get('eId'))   # eigen id van de sectie
+                if at.get('wId'): wrap.set('wId', at.get('wId'))   # post-pass: wId -> uId
                 kop=ch(at,'Kop')
                 if kop is not None: wrap.append(kop_to_int(kop))   # eigen kop van de toelichting
                 for c in kids(at):

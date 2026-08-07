@@ -59,8 +59,10 @@ def wids(root, struct_only=True):
     return {w for w in ws if not struct_only or not w.startswith('uid-')}
 
 def tekst_van(root):
+    # witruimte-ONgevoelig: STOP-content is de woorden; inter-element-witruimte
+    # (bv. rond Kop-nummers) is incidenteel en verschilt onschuldig per serialisatie.
     tek = next((c for c in root.iter() if L(c.tag) == 'Tekst'), None)
-    return re.sub(r'\s+', ' ', ''.join(tek.itertext())).strip() if tek is not None else ''
+    return re.sub(r'\s+', '', ''.join(tek.itertext())) if tek is not None else ''
 
 def trio(root):
     d = {}

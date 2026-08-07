@@ -473,25 +473,16 @@ def transform(compact_path):
                     if o.get(a): e.set(a,o.get(a))
                 bv.append(e)
             R.append(bv)
-    # id-schema (mirror): integrated draagt uId = de wId zonder de redundante {bg}_-prefix;
-    # uId houdt zo de (evt. historische) work-positie vast — nodig voor byte-exacte wId-
-    # reconstructie en voor renvooi. wId = {bg}_{uId} bij de terugweg. Mark blijft ongemoeid.
-    bg=R.get('bevoegdGezagCode') or ''
+    # id-schema (mirror): integrated draagt uId = de wId LETTERLIJK (geen prefix eraf).
+    # Import neemt over wat in de data staat; bij zelf aanmaken zit er een GUID in
+    # ({bg}_{guid}__{eId}). Byte-exact en renvooi-stabiel. Mark blijft ongemoeid.
     for el in R.iter():
         if L(el.tag)=='Mark': continue
         w=el.get('wId')
         if w is not None:
-            el.set('uId', wid_to_uid(w, bg))
+            el.set('uId', w)
             del el.attrib['wId']
     return R
-
-def wid_to_uid(wid, bg):
-    """STOP wId -> integrated uId = wId zonder de {bg}_-prefix. Niet-geprefixte
-    top-level ids (body/longTitle/toelichting-recitals) blijven ongewijzigd."""
-    if not wid: return wid
-    if bg and wid.startswith(bg + '_'):
-        return wid[len(bg) + 1:]
-    return wid
 
 def rapport(compact_path):
     R=transform(compact_path)

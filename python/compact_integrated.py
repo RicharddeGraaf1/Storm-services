@@ -210,11 +210,12 @@ def _markeer(comp, zoek, kind, ref):
         return True
     return False
 
-def plaats_ankermarks(comp, aanduidingen):
+def plaats_ankermarks(comp, aanduidingen, act_naam):
     for aa in aanduidingen:
         ident=aa.get('identificatie')
         if not ident: continue
-        _markeer(comp, aa.get('activiteitNaam'), 'activiteitRef', ident)
+        naam=act_naam.get(aa.get('activiteitIdentificatie'))   # naam uit de pool
+        _markeer(comp, naam, 'activiteitRef', ident)
         kws=next((k for c,k in RK_KEYWORDS if c==_concept(aa.get('regelkwalificatie'))), [])
         for kw in kws:
             if _markeer(comp, kw, 'regelkwalificatie', ident): break
@@ -271,12 +272,11 @@ def reshape_doccomp(el, ann, act_naam):
             for aa in a.get('activiteiten',[]):
                 el2=I('ActiviteitAanduiding')
                 if aa.get('identificatie'): el2.set('identificatie',aa['identificatie'])
-                el2.set('activiteitIdentificatie',aa['ref'])
-                el2.set('activiteitNaam',act_naam.get(aa['ref'],aa['ref']))
+                el2.set('activiteitIdentificatie',aa['ref'])   # naam: uit de Activiteit-pool
                 if aa.get('regelkwalificatie'): el2.set('regelkwalificatie',aa['regelkwalificatie'])
                 if aa.get('locatieRef'): el2.set('locatieRef',aa['locatieRef'])
                 out.append(el2); aanduidingen.append(el2)
-            plaats_ankermarks(out, aanduidingen)   # vorm A: span-ankers inline
+            plaats_ankermarks(out, aanduidingen, act_naam)   # vorm A: span-ankers inline
             for th in a.get('themas',[]):
                 t=I('Thema'); t.text=th; out.append(t)
         return out

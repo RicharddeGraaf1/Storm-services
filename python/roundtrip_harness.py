@@ -15,9 +15,15 @@ Gebruik:
   python roundtrip_harness.py [N] [--filter=substr] [--corpus=DIR]
   N        aantal pakketten (default 16, divers gekozen); 0 = alle
 """
-import sys, re, zipfile, tempfile, shutil, traceback
+import sys, re, zipfile, tempfile, shutil, traceback, copy
+from collections import Counter
 from pathlib import Path
 from lxml import etree
+
+# Elementtypes die compact<->integrated nu nog niet round-trippt (bekende gaten).
+# De harness snoeit deze uit C weg vóór de wId/tekst-diff, zodat een resterend
+# verschil een ECHTE afwijking is ("gaat de rest goed?"). Dit is tevens de TODO-lijst.
+ACCEPTED_DROPS = {'Figuur', 'Lijst', 'Li', 'Conditie', 'Kadertekst'}
 
 import download_roundtrip as dr
 import volledig_compact as vc
@@ -82,6 +88,15 @@ def diff_keyed(a, b):
     gelijk = sum(a[k] == b[k] for k in ov)
     return len(a), len(b), len(ov), gelijk, sorted(set(a) - set(b))[:3]
 
+def prune(root):
+    """Verwijder de subtrees van de ACCEPTED_DROPS-types, zodat de vergelijking
+    alleen de wél-gedragen elementen toetst."""
+    r = copy.deepcopy(root)
+    for parent in list(r.iter()):
+        for c in [x for x in parent if isinstance(x.tag, str) and L(x.tag) in ACCEPTED_DROPS]:
+            parent.remove(c)
+    return r
+
 # ---------- per pakket ----------
 def verwerk(zippad, work):
     r = {"pakket": zippad.name}
@@ -130,6 +145,8 @@ def verwerk(zippad, work):
     except Exception as e:
         r["c2i"] = f"ERR:{type(e).__name__}"; return r
     r["c2i"] = "valid" if SCHEMA["integrated"].validate(etree.ElementTree(I)) else "INVALID"
+    if ci.regel_op_artikel:
+        r["c2i"] += f"+{len(ci.regel_op_artikel)}roa"   # regel-op-artikel geflagd (geen crash)
     ipad = work / "integrated.xml"
     etree.ElementTree(I).write(str(ipad), xml_declaration=True, encoding="UTF-8", pretty_print=True)
     Cx = ic.transform(ipad)
@@ -137,10 +154,15 @@ def verwerk(zippad, work):
     etree.ElementTree(Cx).write(str(cxpad), xml_declaration=True, encoding="UTF-8", pretty_print=True)
     Ix = ci.transform(cxpad)
 
-    # --- assen compact <-> integrated ---
-    wa, wb = wids(C), wids(Cx)
-    r["wId"] = "OK" if wa == wb else f"{len(wa)}->{len(wb)} d{len(wa ^ wb)}"
-    r["tekst"] = "OK" if tekst_van(C) == tekst_van(Cx) else "FAIL"
+    # --- assen compact <-> integrated (snoei de accepted-drops uit BEIDE kanten:
+    #     ze worden niet netjes gedropt maar soms gemangeld, dus uit C én Cx weg) ---
+    Cp, Cxp = prune(C), prune(Cx)
+    wa, wb = wids(Cp), wids(Cxp)
+    r["wId"] = "OK" if wa == wb else f"d{len(wa ^ wb)}"
+    r["tekst"] = "OK" if tekst_van(Cp) == tekst_van(Cxp) else "FAIL"
+    drops = Counter(L(e.tag) for e in C.iter()
+                    if isinstance(e.tag, str) and L(e.tag) in ACCEPTED_DROPS)
+    r["drops"] = ",".join(f"{k[:3]}{v}" for k, v in drops.most_common(3)) or "-"
     ta, tb, tov, tgel, _ = diff_keyed(trio(C), trio(Cx))
     r["trio"] = f"{tgel}/{tov}" + (f" (n:1 {ta}->{tb})" if ta != tb else "")
     ma, mb = marks(I), marks(Ix)
@@ -156,7 +178,7 @@ def main():
         elif a.isdigit(): n = int(a)
     pakketten = kies_pakketten(n, filt)
     print(f"corpus: {CORPUS}  |  steekproef: {len(pakketten)} pakketten\n")
-    cols = ["pakket", "dl_verbatim", "dl_ow", "dl_gio", "v2c", "c2i", "wId", "tekst", "trio", "marks"]
+    cols = ["pakket", "dl_verbatim", "dl_ow", "dl_gio", "v2c", "c2i", "wId", "tekst", "trio", "marks", "drops"]
     print("  ".join(f"{c:<14}" if c == "pakket" else f"{c:<11}" for c in cols))
     rijen = []
     for z in pakketten:
@@ -176,10 +198,11 @@ def main():
     print(f"\n== samenvatting ({len(rijen)}) ==")
     print(f"  download<->volledig verbatim OK : {telt('dl_verbatim', lambda v: v=='OK')}")
     print(f"  volledig->compact valide        : {telt('v2c', lambda v: v=='valid')}")
-    print(f"  compact->integrated valide      : {telt('c2i', lambda v: v=='valid')}")
-    print(f"  wId byte-exact (compact<->int)  : {telt('wId', lambda v: v=='OK')}")
-    print(f"  tekst verliesvrij               : {telt('tekst', lambda v: v=='OK')}")
+    print(f"  compact->integrated valide      : {telt('c2i', lambda v: str(v).startswith('valid'))}")
+    print(f"  wId byte-exact* (compact<->int) : {telt('wId', lambda v: v=='OK')}")
+    print(f"  tekst verliesvrij*              : {telt('tekst', lambda v: v=='OK')}")
     print(f"  marks stabiel                   : {telt('marks', lambda v: v=='OK')}")
+    print(f"  (* na snoei van de accepted-drops uit beide kanten: {sorted(ACCEPTED_DROPS)})")
     fouten = [r for r in rijen if any(str(r.get(c, '')).startswith(('ERR', 'CRASH', 'FAIL', 'INVALID'))
                                       for c in cols)]
     if fouten:

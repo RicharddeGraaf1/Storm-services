@@ -229,8 +229,22 @@ def obj_from_attrs(name, src, fields, refattr=None, refname=None):
     if src.get('gioRef'): o.append(_cref('gioRef', src.get('gioRef')))
     return o
 
+def uid_to_wid(uid, eid, bg):
+    """integrated uId + eId -> STOP wId = {bg}_{uId}__{eId}. Top-level (uId==eId): wId==uId."""
+    if uid is None: return None
+    if eid is None or uid==eid: return uid
+    return f"{bg}_{uid}__{eid}"
+
 def transform(int_path):
     root=etree.parse(str(int_path)).getroot()
+    # id-schema: integrated draagt uId; STOP-vorm heeft wId nodig. In STOP heeft een element
+    # een wId dan-en-slechts-dan als het een eId heeft (beide uit agAKN). Dus: heeft eId ->
+    # assembleer wId = {bg}_{uId}__{eId} vóór de bestaande (wId-lezende) logica. Elementen
+    # zonder eId (Alinea, Rij/row, Cel/entry, Conditie) blijven uId-only — geen wId.
+    bg=root.get('bevoegdGezagCode') or ''
+    for el in root.iter():
+        if el.get('eId') is not None and el.get('uId') is not None:
+            el.set('wId', uid_to_wid(el.get('uId'), el.get('eId'), bg))
     R=etree.Element(f"{{{COMPACT}}}Regeling", nsmap={None:COMPACT,'tekst':TEKST,'xsi':XSI})
     R.set('variant','compact'); R.set('schemaversie','0.6.0')
     R.set(f"{{{XSI}}}schemaLocation", f"{COMPACT} {XSD_URL}")

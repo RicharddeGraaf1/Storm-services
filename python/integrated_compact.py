@@ -230,10 +230,11 @@ def obj_from_attrs(name, src, fields, refattr=None, refname=None):
     return o
 
 def uid_to_wid(uid, eid, bg):
-    """integrated uId + eId -> STOP wId = {bg}_{uId}__{eId}. Top-level (uId==eId): wId==uId."""
+    """integrated uId -> STOP wId = {bg}_{uId} (uId draagt al de work-positie).
+    Niet-geprefixte top-level ids (uId==eId: body/longTitle/toelichting) blijven uId."""
     if uid is None: return None
     if eid is None or uid==eid: return uid
-    return f"{bg}_{uid}__{eid}"
+    return f"{bg}_{uid}"
 
 def transform(int_path):
     root=etree.parse(str(int_path)).getroot()

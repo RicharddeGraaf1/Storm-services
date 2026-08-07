@@ -473,24 +473,25 @@ def transform(compact_path):
                     if o.get(a): e.set(a,o.get(a))
                 bv.append(e)
             R.append(bv)
-    # id-schema: integrated gebruikt uId (de guid/workpart) i.p.v. wId; eId (structuurpad)
-    # blijft. wId = {bg}_{uId}__{eId} wordt bij de terugweg geassembleerd. Mark blijft ongemoeid.
+    # id-schema (mirror): integrated draagt uId = de wId zonder de redundante {bg}_-prefix;
+    # uId houdt zo de (evt. historische) work-positie vast — nodig voor byte-exacte wId-
+    # reconstructie en voor renvooi. wId = {bg}_{uId} bij de terugweg. Mark blijft ongemoeid.
+    bg=R.get('bevoegdGezagCode') or ''
     for el in R.iter():
         if L(el.tag)=='Mark': continue
         w=el.get('wId')
         if w is not None:
-            el.set('uId', wid_to_uid(w, el.get('eId')))
+            el.set('uId', wid_to_uid(w, bg))
             del el.attrib['wId']
     return R
 
-def wid_to_uid(wid, eid):
-    """STOP wId ({bg}_{workpart}__{eId}) -> integrated uId (workpart/guid).
-    Strip met de bekende eId (eId's bevatten zelf '__', dus niet blind op '__' splitsen)."""
+def wid_to_uid(wid, bg):
+    """STOP wId -> integrated uId = wId zonder de {bg}_-prefix. Niet-geprefixte
+    top-level ids (body/longTitle/toelichting-recitals) blijven ongewijzigd."""
     if not wid: return wid
-    if eid and wid!=eid and wid.endswith('__'+eid):
-        prefix=wid[:-(len(eid)+2)]                # bv. gm0297_1
-        return prefix.rsplit('_',1)[1] if '_' in prefix else prefix
-    return wid                                    # geen bg-prefix: uId == wId (== eId)
+    if bg and wid.startswith(bg + '_'):
+        return wid[len(bg) + 1:]
+    return wid
 
 def rapport(compact_path):
     R=transform(compact_path)

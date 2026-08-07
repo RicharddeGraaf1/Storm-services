@@ -187,10 +187,10 @@ def _eigen_tekstruns(comp):
             else: walk(c)
     walk(comp); return out
 
-def _markeer(comp, zoek, kind, ref):
-    """Splits de eerste run met een hele-woord-match op 'zoek' en zet er de mark op.
-    Runs die al een Mark dragen (bv. intIoRef) worden overgeslagen — die zijn één span."""
-    if not zoek: return False
+def _markeer_een(comp, zoek, kind, ref):
+    """Splits het eerste ongemarkeerde run met een hele-woord-match op 'zoek' en zet
+    er de mark op. Runs die al een Mark dragen (bv. intIoRef, of een eerdere anker-
+    mark) worden overgeslagen — die zijn één span. Geeft True als er gemarkeerd is."""
     pat=re.compile(r'\b'+re.escape(zoek)+r'\b', re.IGNORECASE)
     for run in _eigen_tekstruns(comp):
         if any(L(m.tag)=='Mark' for m in kids(run)): continue
@@ -198,9 +198,8 @@ def _markeer(comp, zoek, kind, ref):
         m=pat.search(tekst)
         if not m: continue
         parent=run.getparent(); idx=parent.index(run); parent.remove(run)
-        for j,(seg,ismark) in enumerate(((tekst[:m.start()],False),
-                                         (tekst[m.start():m.end()],True),
-                                         (tekst[m.end():],False))):
+        for seg,ismark in ((tekst[:m.start()],False),(tekst[m.start():m.end()],True),
+                           (tekst[m.end():],False)):
             if seg=='' and not ismark: continue
             r=I('TekstRun'); r.set('tekst',seg)
             if run.get('soort'): r.set('soort',run.get('soort'))
@@ -210,15 +209,27 @@ def _markeer(comp, zoek, kind, ref):
         return True
     return False
 
+def _markeer_alle(comp, zoek, kind, ref):
+    """Markeer ÁLLE heel-woord-voorkomens van 'zoek'. Geeft het aantal terug."""
+    if not zoek: return 0
+    n=0
+    while _markeer_een(comp, zoek, kind, ref): n+=1
+    return n
+
 def plaats_ankermarks(comp, aanduidingen, act_naam):
+    """Vorm A, exacte plaatsing (annotatie-detectie.md § plaatsingsregel):
+      - activiteitRef: markeer élk heel-woord-voorkomen van de activiteitnaam (uit de pool).
+      - regelkwalificatie: kies per aanduiding-concept het meest-specifieke (langste)
+        keyword dat vóórkomt, en markeer álle voorkomens dáárvan; concept-keyed, dus
+        de koppeling klopt ook in een lid met meerdere activiteiten."""
     for aa in aanduidingen:
         ident=aa.get('identificatie')
         if not ident: continue
         naam=act_naam.get(aa.get('activiteitIdentificatie'))   # naam uit de pool
-        _markeer(comp, naam, 'activiteitRef', ident)
+        _markeer_alle(comp, naam, 'activiteitRef', ident)
         kws=next((k for c,k in RK_KEYWORDS if c==_concept(aa.get('regelkwalificatie'))), [])
-        for kw in kws:
-            if _markeer(comp, kw, 'regelkwalificatie', ident): break
+        for kw in kws:   # langste eerst; eerste dat voorkomt wint, dan al zijn voorkomens
+            if _markeer_alle(comp, kw, 'regelkwalificatie', ident)>0: break
 
 def reshape_doccomp(el, ann, act_naam):
     ln=L(el.tag)

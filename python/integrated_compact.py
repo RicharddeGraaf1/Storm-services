@@ -135,8 +135,10 @@ def tabel_to_stop(cb):
             for cel in kids(r):
                 if L(cel.tag)!='Cel': continue
                 entry=etree.SubElement(row,f"{{{TEKST}}}entry")
-                al=ch(cel,'Alinea')
-                if al is not None: runs_to(entry, al)
+                # alle content-blokken van de cel terug naar STOP (Al/Lijst/…)
+                for c in kids(cel):
+                    stopel=stop_contentblok(c)
+                    if stopel is not None: entry.append(stopel)
     rijen('thead','thead'); rijen('tbody','tbody')
     return tb
 

@@ -159,9 +159,18 @@ def table_to_int(el):
             for entry in kids(row):
                 if L(entry.tag)!='entry': continue
                 cel=I('Cel'); cel.set('uId',uid())
-                al=I('Alinea'); al.set('uId',uid())
-                for rr in runs(entry): al.append(rr)
-                cel.append(al); r.append(cel)
+                # block-content in de cel (Lijst/Al/…) als content-blokken behouden i.p.v.
+                # platslaan; alleen bij pure inline-tekst een enkele Alinea maken
+                blocks=[c for c in kids(entry) if L(c.tag) in ('Al','Lijst','Begrippenlijst','table','Kadertekst','Figuur')]
+                if blocks:
+                    for c in blocks:
+                        cbk=contentblok(c)
+                        if cbk is not None: cel.append(cbk)
+                else:
+                    al=I('Alinea'); al.set('uId',uid())
+                    for rr in runs(entry): al.append(rr)
+                    cel.append(al)
+                r.append(cel)
             tb.append(r)
     return tb
 

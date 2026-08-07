@@ -92,12 +92,23 @@ def map_juridischeregel(src):
     for aa in kids(src):
         if L(aa.tag)!='activiteitaanduiding': continue
         act=child(aa,'activiteit')
-        ca=C('activiteitaanduiding')
-        ca.append(Cref('activiteit', act.get('ref') if act is not None else ''))
-        ala=child(aa,'ActiviteitLocatieaanduiding')
-        rk=childtext(ala,'activiteitregelkwalificatie') if ala is not None else None
-        if rk: ca.append(C('regelkwalificatie', rk))
-        jr.append(ca)
+        actref=act.get('ref') if act is not None else ''
+        alas=[a for a in kids(aa) if L(a.tag)=='ActiviteitLocatieaanduiding']
+        if not alas:
+            ca=C('activiteitaanduiding'); ca.append(Cref('activiteit', actref)); jr.append(ca)
+            continue
+        # één activiteitaanduiding per (activiteit × ActiviteitLocatieaanduiding):
+        # het (locatie, regelkwalificatie)-paar hoort bij de ALA, met de ALA-id als identificatie
+        for ala in alas:
+            ca=C('activiteitaanduiding')
+            aid=childtext(ala,'identificatie')
+            if aid: ca.append(C('identificatie', aid))
+            ca.append(Cref('activiteit', actref))
+            loc=child(ala,'locatieaanduiding')
+            if loc is not None and loc.get('ref'): ca.append(Cref('locatieaanduiding', loc.get('ref')))
+            rk=childtext(ala,'activiteitregelkwalificatie')
+            if rk: ca.append(C('regelkwalificatie', rk))
+            jr.append(ca)
     for th in kids(src):
         if L(th.tag)=='thema': jr.append(C('thema', th.text))
     return jr, [child(aa,'activiteit').get('ref')

@@ -8,6 +8,7 @@ vocabulaire (SimplicIT-support); dit is de STRUCTUUR-as. Twee hervormingen:
   2. STOP-tekst -> ContentBlok/TekstRun+Mark; Kop-child-elementen -> attributen.
 Pools (Activiteit/Norm/...): compact child-elementen -> integrated attributen.
 """
+import re
 from pathlib import Path
 from lxml import etree
 
@@ -161,6 +162,63 @@ def table_to_int(el):
             tb.append(r)
     return tb
 
+# ---------- vorm A: inline span-anker-marks (activiteitRef + regelkwalificatie) ----------
+# De marks wijzen met @ref naar ActiviteitAanduiding@identificatie; de waarheid staat
+# op die aanduiding. De span is best-effort: gevonden via naam-/keyword-match op de tekst
+# (spiegelt annotatie-detectie.md). Geen match -> geen mark, data blijft op de aanduiding.
+RK_KEYWORDS=[
+    ('Verbod',           ['niet toegestaan','niet is toegestaan','verboden']),
+    ('Vergunningplicht', ['omgevingsvergunning','vergunningplichtig','vergunningplicht','vergunning']),
+    ('Meldingsplicht',   ['meldingsplichtig','meldingsplicht','melding','melden']),
+    ('Informatieplicht', ['informatieplicht','informeren']),
+    ('Gebod',            ['verplicht','is gehouden','dient te','moet']),
+    ('Toegestaan',       ['is toegestaan','toelaatbaar','toegestaan','mag']),
+]
+def _concept(uri): return uri.rstrip('/').split('/')[-1] if uri else None
+
+def _eigen_tekstruns(comp):
+    """TekstRuns in de eigen Alinea's van comp — niet in geneste Lid/Artikel/Divisietekst."""
+    out=[]
+    def walk(el):
+        for c in kids(el):
+            ln=L(c.tag)
+            if ln in ('Lid','Artikel','Divisietekst'): continue
+            if ln=='TekstRun': out.append(c)
+            else: walk(c)
+    walk(comp); return out
+
+def _markeer(comp, zoek, kind, ref):
+    """Splits de eerste run met een hele-woord-match op 'zoek' en zet er de mark op.
+    Runs die al een Mark dragen (bv. intIoRef) worden overgeslagen — die zijn één span."""
+    if not zoek: return False
+    pat=re.compile(r'\b'+re.escape(zoek)+r'\b', re.IGNORECASE)
+    for run in _eigen_tekstruns(comp):
+        if any(L(m.tag)=='Mark' for m in kids(run)): continue
+        tekst=run.get('tekst') or ''
+        m=pat.search(tekst)
+        if not m: continue
+        parent=run.getparent(); idx=parent.index(run); parent.remove(run)
+        for j,(seg,ismark) in enumerate(((tekst[:m.start()],False),
+                                         (tekst[m.start():m.end()],True),
+                                         (tekst[m.end():],False))):
+            if seg=='' and not ismark: continue
+            r=I('TekstRun'); r.set('tekst',seg)
+            if run.get('soort'): r.set('soort',run.get('soort'))
+            if ismark:
+                mk=I('Mark'); mk.set('kind',kind); mk.set('ref',ref); r.append(mk)
+            parent.insert(idx,r); idx+=1
+        return True
+    return False
+
+def plaats_ankermarks(comp, aanduidingen):
+    for aa in aanduidingen:
+        ident=aa.get('identificatie')
+        if not ident: continue
+        _markeer(comp, aa.get('activiteitNaam'), 'activiteitRef', ident)
+        kws=next((k for c,k in RK_KEYWORDS if c==_concept(aa.get('regelkwalificatie'))), [])
+        for kw in kws:
+            if _markeer(comp, kw, 'regelkwalificatie', ident): break
+
 def reshape_doccomp(el, ann, act_naam):
     ln=L(el.tag)
     if ln=='Lichaam':
@@ -209,12 +267,16 @@ def reshape_doccomp(el, ann, act_naam):
         if a:
             if a.get('owRegeltekst'): out.set('owRegeltekstIdentificatie',a['owRegeltekst'])
             if a.get('owJuridischeRegel'): out.set('owJuridischeRegelIdentificatie',a['owJuridischeRegel'])
+            aanduidingen=[]
             for aa in a.get('activiteiten',[]):
                 el2=I('ActiviteitAanduiding')
+                if aa.get('identificatie'): el2.set('identificatie',aa['identificatie'])
                 el2.set('activiteitIdentificatie',aa['ref'])
                 el2.set('activiteitNaam',act_naam.get(aa['ref'],aa['ref']))
                 if aa.get('regelkwalificatie'): el2.set('regelkwalificatie',aa['regelkwalificatie'])
-                out.append(el2)
+                if aa.get('locatieRef'): el2.set('locatieRef',aa['locatieRef'])
+                out.append(el2); aanduidingen.append(el2)
+            plaats_ankermarks(out, aanduidingen)   # vorm A: span-ankers inline
             for th in a.get('themas',[]):
                 t=I('Thema'); t.text=th; out.append(t)
         return out
@@ -255,8 +317,11 @@ def transform(compact_path):
             for aa in kids(o):
                 if L(aa.tag)!='activiteitaanduiding': continue
                 act=ch(aa,'activiteit')
+                loc=ch(aa,'locatieaanduiding')
                 acts.append({'ref':act.get('ref') if act is not None else '',
-                             'regelkwalificatie':ct(aa,'regelkwalificatie')})
+                             'regelkwalificatie':ct(aa,'regelkwalificatie'),
+                             'identificatie':ct(aa,'identificatie'),
+                             'locatieRef':loc.get('ref') if loc is not None else None})
             ann[wid]={'owRegeltekst':rtid,'owJuridischeRegel':ct(o,'identificatie'),
                       'activiteiten':acts,
                       'themas':[t.text for t in kids(o) if L(t.tag)=='thema']}

@@ -206,7 +206,9 @@ def reshape_back(el, regels_out):
             for aa in kids(el):
                 if L(aa.tag)!='ActiviteitAanduiding': continue
                 ca=C('activiteitaanduiding')
+                if aa.get('identificatie'): ca.append(C('identificatie', aa.get('identificatie')))
                 ca.append(_cref('activiteit', aa.get('activiteitIdentificatie') or ''))
+                if aa.get('locatieRef'): ca.append(_cref('locatieaanduiding', aa.get('locatieRef')))
                 if aa.get('regelkwalificatie'): ca.append(C('regelkwalificatie', aa.get('regelkwalificatie')))
                 jr.append(ca)
             for th in kids(el):

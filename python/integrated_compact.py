@@ -45,6 +45,9 @@ def append_run(parent, run):
         for inl in kids(n if n is not None else run):
             if L(inl.tag)=='TekstRun':
                 al=T('Al'); append_run(al,inl); noot.append(al)
+            elif L(inl.tag)=='Lijst':        # lijst in een voetnoot
+                lj=stop_contentblok(inl)
+                if lj is not None: noot.append(lj)
         parent.append(noot); return
     marks=[m for m in kids(run) if L(m.tag)=='Mark']
     if not marks:
@@ -92,6 +95,9 @@ def stop_contentblok(cb):
                     sub=stop_contentblok(c)
                     if sub is not None: li.append(sub)
             lj.append(li)
+        slu=ch(cb,'Sluiting')
+        if slu is not None:
+            ls=T('Lijstsluiting'); runs_to(ls,slu); lj.append(ls)
         return lj
     if t=='Begrippenlijst':
         bl=T('Begrippenlijst')
@@ -122,14 +128,16 @@ def stop_contentblok(cb):
         if cb.get('wId'): fg.set('wId',cb.get('wId'))
         tit=ch(cb,'Titel')
         if tit is not None:
-            tt=T('Titel'); tt.text=''.join(r.get('tekst','') for r in kids(tit) if L(r.tag)=='TekstRun')
-            fg.append(tt)
+            tt=T('Titel'); runs_to(tt, tit); fg.append(tt)
         ill=T('Illustratie'); ill.set('naam', cb.get('afbeeldingId') or '')
         if cb.get('alt'): ill.set('alt', cb.get('alt'))
         fg.append(ill)
         bij=ch(cb,'Bijschrift')
         if bij is not None:
             b=T('Bijschrift'); runs_to(b, bij); fg.append(b)
+        bron=ch(cb,'Bron')
+        if bron is not None:
+            bn=T('Bron'); runs_to(bn, bron); fg.append(bn)
         return fg
     if t=='Kadertekst':
         kt=T('Kadertekst')
@@ -171,6 +179,9 @@ def tabel_to_stop(cb):
                     stopel=stop_contentblok(c)
                     if stopel is not None: entry.append(stopel)
     rijen('thead','thead'); rijen('tbody','tbody')
+    bron=ch(cb,'Bron')
+    if bron is not None:
+        bn=T('Bron'); runs_to(bn, bron); tb.append(bn)
     return tb
 
 def stop_kop(kop):

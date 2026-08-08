@@ -76,6 +76,9 @@ def runs(el, active=None):
             for al in kids(c):
                 if L(al.tag)=='Al':
                     for rr in runs(al): noot.append(rr)
+                elif L(al.tag)=='Lijst':     # STOP: Noot = NootNummer + (Al|Lijst)+
+                    lj=contentblok(al)
+                    if lj is not None: noot.append(lj)
             r.append(noot); out.append(r)
         else:
             emit(''.join(c.itertext()))
@@ -121,6 +124,11 @@ def contentblok(el):
                     cb=contentblok(c)
                     if cb is not None: it.append(cb)
             lj.append(it)
+        slu=ch(el,'Lijstsluiting')
+        if slu is not None:
+            w=I('Sluiting')
+            for r in runs(slu): w.append(r)
+            lj.append(w)
         return lj
     if ln=='Begrippenlijst':
         bl=I('Begrippenlijst'); bl.set('eId',el.get('eId') or uid()); bl.set('wId',el.get('wId') or bl.get('eId'))
@@ -158,13 +166,22 @@ def contentblok(el):
         fg.set('afbeeldingId', (ill.get('naam') if ill is not None else '') or '')
         if ill is not None and ill.get('alt'): fg.set('alt', ill.get('alt'))
         tit=ch(el,'Titel')
-        if tit is not None and tit.text:
-            t=I('Titel'); rr=I('TekstRun'); rr.set('tekst',tit.text); t.append(rr); fg.append(t)
+        if tit is not None:
+            # STOP-figuurtitel is mixed (inline-opmaak); tit.text alleen pakt de
+            # witruimte vóór het eerste kind-element en dropt het bijschrift
+            t=I('Titel')
+            for r in runs(tit): t.append(r)
+            if len(t): fg.append(t)
         bij=ch(el,'Bijschrift')
         if bij is not None:
             b=I('Bijschrift')
             for r in runs(bij): b.append(r)
             fg.append(b)
+        bron=ch(el,'Bron')
+        if bron is not None:
+            bn=I('Bron')
+            for r in runs(bron): bn.append(r)
+            fg.append(bn)
         return fg
     return None   # Tussenkop e.d. -> aanzet: overslaan
 
@@ -205,6 +222,11 @@ def table_to_int(el):
                     cel.append(al)
                 r.append(cel)
             tb.append(r)
+    bron=ch(el,'Bron')                       # STOP: table/Bron na tgroup
+    if bron is not None:
+        bn=I('Bron')
+        for rr in runs(bron): bn.append(rr)
+        tb.append(bn)
     return tb
 
 # ---------- vorm A: inline span-anker-marks (activiteitRef + regelkwalificatie) ----------

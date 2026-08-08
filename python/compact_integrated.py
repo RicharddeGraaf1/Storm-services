@@ -135,6 +135,8 @@ def contentblok(el):
         for bg in kids(el):
             if L(bg.tag)!='Begrip': continue
             g=I('Begrip'); g.set('eId',bg.get('eId') or uid()); g.set('wId',bg.get('wId') or g.get('eId'))
+            num=ct(bg,'LiNummer')            # STOP: Begrip = LiNummer?, Term, Definitie
+            if num: g.set('nummer',num)
             term=ch(bg,'Term')
             if term is not None:
                 t=I('Term')

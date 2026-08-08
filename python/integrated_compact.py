@@ -108,6 +108,8 @@ def stop_contentblok(cb):
             bg=T('Begrip')
             if g.get('eId'): bg.set('eId',g.get('eId'))
             if g.get('wId'): bg.set('wId',g.get('wId'))
+            if g.get('nummer'):
+                ln=T('LiNummer'); ln.text=g.get('nummer'); bg.append(ln)
             term=ch(g,'Term')
             if term is not None:
                 tt=T('Term'); runs_to(tt,term); bg.append(tt)

@@ -276,6 +276,12 @@ def reshape_doccomp(el, ann, act_naam):
     ln=L(el.tag)
     if ln=='Lichaam':
         out=I('Lichaam'); out.set('eId',el.get('eId') or 'body'); out.set('wId',el.get('wId') or 'body')
+        cond=ch(el,'Conditie')                # RegelingTijdelijkdeel: wrapper bovenin
+        if cond is not None:
+            c_el=I('Conditie'); c_el.set('uId', uid())   # STOP-Conditie heeft geen wId (agAlgemeen)
+            for c in kids(cond):
+                if L(c.tag)=='Artikel': c_el.append(reshape_doccomp(c, ann, act_naam))
+            if kids(c_el): out.append(c_el)
         for c in kids(el):
             if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','Bijlage'}:
                 out.append(reshape_doccomp(c, ann, act_naam))

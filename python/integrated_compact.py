@@ -184,6 +184,12 @@ def reshape_back(el, regels_out):
     t=L(el.tag)
     if t=='Lichaam':
         out=T('Lichaam'); out.set('eId',el.get('eId') or 'body'); out.set('wId',el.get('wId') or 'body')
+        cond=ch(el,'Conditie')                # RegelingTijdelijkdeel: wrapper vóór de structuur
+        if cond is not None:
+            c_el=T('Conditie')
+            for c in kids(cond):
+                if L(c.tag)=='Artikel': c_el.append(reshape_back(c, regels_out))
+            out.append(c_el)
         for c in kids(el):
             if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','Bijlage'}:
                 out.append(reshape_back(c, regels_out))

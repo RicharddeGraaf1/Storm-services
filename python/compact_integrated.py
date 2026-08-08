@@ -100,6 +100,10 @@ def contentblok(el):
         a=I('Alinea'); a.set('uId', el.get('wId') or el.get('eId') or uid())
         for r in runs(el): a.append(r)
         return a
+    if ln=='Tussenkop':
+        tk=I('Tussenkop'); tk.set('uId', uid())
+        for r in runs(el): tk.append(r)
+        return tk
     if ln=='Lijst':
         lj=I('Lijst'); lj.set('eId',el.get('eId') or uid()); lj.set('wId',el.get('wId') or lj.get('eId'))
         aan=ch(el,'Lijstaanhef')
@@ -190,7 +194,7 @@ def table_to_int(el):
                 cel=I('Cel'); cel.set('uId',uid())
                 # block-content in de cel (Lijst/Al/…) als content-blokken behouden i.p.v.
                 # platslaan; alleen bij pure inline-tekst een enkele Alinea maken
-                blocks=[c for c in ungroep(kids(entry)) if L(c.tag) in ('Al','Lijst','Begrippenlijst','table','Kadertekst','Figuur')]
+                blocks=[c for c in ungroep(kids(entry)) if L(c.tag) in ('Al','Tussenkop','Lijst','Begrippenlijst','table','Kadertekst','Figuur')]
                 if blocks:
                     for c in blocks:
                         cbk=contentblok(c)
@@ -309,7 +313,7 @@ def reshape_doccomp(el, ann, act_naam):
         if kop is not None and ln!='Lid': out.append(kop_to_int(kop))
         # inhoud -> contentBlokken
         inh=ch(el,'Inhoud')
-        blokken=ungroep(kids(inh)) if inh is not None else ungroep([c for c in kids(el) if L(c.tag) in ('Al','Lijst','Begrippenlijst','table','Kadertekst','Figuur','Groep')])
+        blokken=ungroep(kids(inh)) if inh is not None else ungroep([c for c in kids(el) if L(c.tag) in ('Al','Tussenkop','Lijst','Begrippenlijst','table','Kadertekst','Figuur','Groep')])
         for c in blokken:
             cb=contentblok(c)
             if cb is not None: out.append(cb)

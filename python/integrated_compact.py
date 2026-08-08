@@ -71,6 +71,8 @@ def stop_contentblok(cb):
         al=T('Al')
         if cb.get('uId'): al.set('wId',cb.get('uId'))
         runs_to(al, cb); return al
+    if t=='Tussenkop':
+        tk=T('Tussenkop'); runs_to(tk, cb); return tk
     if t=='Lijst':
         lj=T('Lijst')
         if cb.get('eId'): lj.set('eId',cb.get('eId'))
@@ -210,7 +212,7 @@ def reshape_back(el, regels_out):
         if el.get('eId'): out.set('eId',el.get('eId'))
         if el.get('wId'): out.set('wId',el.get('wId'))
         aant=el.get('aantekening')
-        blks=[c for c in kids(el) if L(c.tag) in ('Alinea','Lijst','Begrippenlijst','Tabel','Figuur','Kadertekst','Citaat')]
+        blks=[c for c in kids(el) if L(c.tag) in ('Alinea','Tussenkop','Lijst','Begrippenlijst','Tabel','Figuur','Kadertekst','Citaat')]
         leden=[c for c in kids(el) if L(c.tag)=='Lid']
         def inhoud():
             inh=T('Inhoud')

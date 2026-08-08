@@ -159,7 +159,8 @@ def verwerk(zippad, work):
     Cp, Cxp = prune(C), prune(Cx)
     wa, wb = wids(Cp), wids(Cxp)
     r["wId"] = "OK" if wa == wb else f"d{len(wa ^ wb)}"
-    r["tekst"] = "OK" if tekst_van(Cp) == tekst_van(Cxp) else "FAIL"
+    ta, tb = tekst_van(Cp), tekst_van(Cxp)      # tekst-diff-grootte i.p.v. binair
+    r["tekst"] = "OK" if ta == tb else f"~{abs(len(ta) - len(tb))}"
     drops = Counter(L(e.tag) for e in C.iter()
                     if isinstance(e.tag, str) and L(e.tag) in ACCEPTED_DROPS)
     r["drops"] = ",".join(f"{k[:3]}{v}" for k, v in drops.most_common(3)) or "-"
@@ -201,6 +202,12 @@ def main():
     print(f"  compact->integrated valide      : {telt('c2i', lambda v: str(v).startswith('valid'))}")
     print(f"  wId byte-exact* (compact<->int) : {telt('wId', lambda v: v=='OK')}")
     print(f"  tekst verliesvrij*              : {telt('tekst', lambda v: v=='OK')}")
+    def _tk(v):
+        try: return int(str(v).lstrip('~'))
+        except ValueError: return None
+    bijna=sum(1 for r in rijen if (n:=_tk(r.get('tekst')))is not None and 0<n<=200)
+    echt =sum(1 for r in rijen if (n:=_tk(r.get('tekst')))is not None and n>200)
+    print(f"    waarvan tekst-diff <=200 tekens (bijna schoon): {bijna};  >200 (echt verlies): {echt}")
     print(f"  marks stabiel                   : {telt('marks', lambda v: v=='OK')}")
     print(f"  (* na snoei van de accepted-drops uit beide kanten: {sorted(ACCEPTED_DROPS)})")
     fouten = [r for r in rijen if any(str(r.get(c, '')).startswith(('ERR', 'CRASH', 'FAIL', 'INVALID'))

@@ -193,7 +193,7 @@ def reshape_back(el, regels_out):
                 if L(c.tag)=='Artikel': c_el.append(reshape_back(c, regels_out))
             out.append(c_el)
         for c in kids(el):
-            if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','Bijlage'}:
+            if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','InleidendeTekst','Bijlage'}:
                 out.append(reshape_back(c, regels_out))
         return out
     if t in STRUCTUUR or t=='Bijlage':
@@ -204,10 +204,10 @@ def reshape_back(el, regels_out):
         if kop is not None: out.append(stop_kop(kop))
         if el.get('aantekening'): out.append(T(el.get('aantekening')))   # Gereserveerd/Vervallen
         for c in kids(el):
-            if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','Bijlage'}:
+            if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','InleidendeTekst','Bijlage'}:
                 out.append(reshape_back(c, regels_out))
         return out
-    if t in ('Artikel','Lid','Divisietekst'):
+    if t in ('Artikel','Lid','Divisietekst','InleidendeTekst'):
         out=T(t)
         if el.get('eId'): out.set('eId',el.get('eId'))
         if el.get('wId'): out.set('wId',el.get('wId'))
@@ -230,6 +230,10 @@ def reshape_back(el, regels_out):
                 for c in leden: out.append(reshape_back(c, regels_out))
             elif aant:
                 out.append(T(aant))                 # Gereserveerd/Vervallen
+            elif t=='InleidendeTekst':
+                for c in blks:                       # STOP: directe content, geen <Inhoud>
+                    sub=stop_contentblok(c)
+                    if sub is not None: out.append(sub)
             else:
                 out.append(inhoud())                # Inhoud (evt. leeg)
         # annotatie ontvouwen -> Regeltekst + JuridischeRegel
@@ -302,7 +306,7 @@ def transform(int_path):
         kop=ch(at,'Kop')
         if kop is not None: agt.append(stop_kop(kop))    # eigen kop van de toelichting
         for c in kids(at):
-            if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','Bijlage'}:
+            if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','InleidendeTekst','Bijlage'}:
                 agt.append(reshape_back(c, regels_out))
         tekst.append(agt)
     R.append(tekst)

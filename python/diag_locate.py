@@ -16,9 +16,10 @@ def mk_vol(pkg,vol):
         nm=re.sub(r'[^\w.-]','_',(frbr.rstrip('/').split('/')[-1].split('@')[0] if frbr else G.get('map','gio')) or 'gio')
         etree.ElementTree(G).write(str(vol/f"{nm}.storm-gio.xml"),xml_declaration=True,encoding="UTF-8")
 
-idx=int(sys.argv[1]) if len(sys.argv)>1 else 5
+arg1=sys.argv[1] if len(sys.argv)>1 else "5"
 frag=sys.argv[2] if len(sys.argv)>2 else "begripsbepalingen"
-z=sorted(CORPUS.glob("*.zip"))[idx]
+allz=sorted(CORPUS.glob("*.zip"))
+z=allz[int(arg1)] if arg1.isdigit() else next(x for x in allz if arg1.lower() in x.name.lower())
 work=Path(tempfile.mkdtemp())
 try:
     pkg=work/"pkg"; zipfile.ZipFile(z).extractall(pkg)
@@ -37,10 +38,14 @@ try:
         if isinstance(e.tag,str) and e.text and frag in e.text:
             hit=e; break
     if hit is None:
-        # zoek in itertext (fragment kan over inline heen lopen)
+        # diepste element (kortste itertext) dat het fragment bevat
+        best=None
         for e in C.iter():
-            if isinstance(e.tag,str) and frag in ''.join(e.itertext()):
-                hit=e; break
+            if isinstance(e.tag,str):
+                it=''.join(e.itertext())
+                if frag in it and (best is None or len(it)<len(''.join(best.itertext()))):
+                    best=e
+        hit=best
     if hit is None:
         print("fragment niet gevonden in C"); raise SystemExit
     # voorouder-keten

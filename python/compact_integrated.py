@@ -287,7 +287,7 @@ def reshape_doccomp(el, ann, act_naam):
                 if L(c.tag)=='Artikel': c_el.append(reshape_doccomp(c, ann, act_naam))
             if kids(c_el): out.append(c_el)
         for c in kids(el):
-            if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','Bijlage'}:
+            if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','InleidendeTekst','Bijlage'}:
                 out.append(reshape_doccomp(c, ann, act_naam))
         return out
     if ln in STRUCTUUR or ln=='Bijlage':
@@ -298,10 +298,10 @@ def reshape_doccomp(el, ann, act_naam):
         kop=ch(el,'Kop')
         if kop is not None: out.append(kop_to_int(kop))
         for c in kids(el):
-            if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','Bijlage'}:
+            if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','InleidendeTekst','Bijlage'}:
                 out.append(reshape_doccomp(c, ann, act_naam))
         return out
-    if ln in ('Artikel','Lid','Divisietekst'):
+    if ln in ('Artikel','Lid','Divisietekst','InleidendeTekst'):
         out=I(ln); out.set('eId',el.get('eId') or uid()); out.set('wId',el.get('wId') or out.get('eId'))
         st=ch(el,'Gereserveerd')
         if st is None: st=ch(el,'Vervallen')
@@ -412,7 +412,7 @@ def transform(compact_path):
                 kop=ch(at,'Kop')
                 if kop is not None: wrap.append(kop_to_int(kop))   # eigen kop van de toelichting
                 for c in kids(at):
-                    if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','Bijlage'}:
+                    if L(c.tag) in STRUCTUUR|{'Artikel','Lid','Divisietekst','InleidendeTekst','Bijlage'}:
                         wrap.append(reshape_doccomp(c, ann, act_naam))
                 if kids(wrap): R.append(wrap)
 

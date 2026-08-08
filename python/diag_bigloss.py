@@ -17,8 +17,9 @@ def tekst(root):
     tek=next((c for c in root.iter() if L(c.tag)=='Tekst'),None)
     return ''.join(tek.itertext()) if tek is not None else ''
 
+import roundtrip_harness as rh
 n=int(sys.argv[1]) if len(sys.argv)>1 else 20
-for z in sorted(CORPUS.glob("*.zip"))[:n]:
+for z in rh.kies_pakketten(n):   # zelfde diverse selectie als de harness
     work=Path(tempfile.mkdtemp())
     try:
         pkg=work/"pkg"; zipfile.ZipFile(z).extractall(pkg)

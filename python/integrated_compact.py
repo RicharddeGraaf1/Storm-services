@@ -129,7 +129,18 @@ def stop_contentblok(cb):
         if bij is not None:
             b=T('Bijschrift'); runs_to(b, bij); fg.append(b)
         return fg
-    # Kadertekst/Citaat: aanzet -> overslaan
+    if t=='Kadertekst':
+        kt=T('Kadertekst')
+        if cb.get('eId'): kt.set('eId',cb.get('eId'))
+        if cb.get('wId'): kt.set('wId',cb.get('wId'))
+        kop=ch(cb,'Kop')
+        if kop is not None: kt.append(stop_kop(kop))
+        for c in kids(cb):
+            if L(c.tag)=='Kop': continue
+            sub=stop_contentblok(c)
+            if sub is not None: kt.append(sub)
+        return kt
+    # Citaat: aanzet -> overslaan
     return None
 
 def tabel_to_stop(cb):

@@ -141,6 +141,8 @@ def contentblok(el):
         return table_to_int(el)
     if ln=='Kadertekst':
         kt=I('Kadertekst'); kt.set('eId',el.get('eId') or uid()); kt.set('wId',el.get('wId') or kt.get('eId'))
+        kop=ch(el,'Kop')
+        if kop is not None: kt.append(kop_to_int(kop))
         for c in ungroep(kids(el)):
             if L(c.tag)=='Kop': continue
             cb=contentblok(c)

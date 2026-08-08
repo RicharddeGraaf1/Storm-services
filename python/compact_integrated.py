@@ -138,7 +138,21 @@ def contentblok(el):
             cb=contentblok(c)
             if cb is not None: kt.append(cb)
         return kt
-    return None   # Tussenkop/Figuur zonder id e.d. -> aanzet: overslaan
+    if ln=='Figuur':
+        fg=I('Figuur'); fg.set('eId',el.get('eId') or uid()); fg.set('wId',el.get('wId') or fg.get('eId'))
+        ill=ch(el,'Illustratie')
+        fg.set('afbeeldingId', (ill.get('naam') if ill is not None else '') or '')
+        if ill is not None and ill.get('alt'): fg.set('alt', ill.get('alt'))
+        tit=ch(el,'Titel')
+        if tit is not None and tit.text:
+            t=I('Titel'); rr=I('TekstRun'); rr.set('tekst',tit.text); t.append(rr); fg.append(t)
+        bij=ch(el,'Bijschrift')
+        if bij is not None:
+            b=I('Bijschrift')
+            for r in runs(bij): b.append(r)
+            fg.append(b)
+        return fg
+    return None   # Tussenkop e.d. -> aanzet: overslaan
 
 def table_to_int(el):
     tb=I('Tabel'); tb.set('eId',el.get('eId') or uid()); tb.set('wId',el.get('wId') or tb.get('eId'))
@@ -274,7 +288,7 @@ def reshape_doccomp(el, ann, act_naam):
         if kop is not None and ln!='Lid': out.append(kop_to_int(kop))
         # inhoud -> contentBlokken
         inh=ch(el,'Inhoud')
-        blokken=kids(inh) if inh is not None else [c for c in kids(el) if L(c.tag) in ('Al','Lijst','Begrippenlijst','table','Kadertekst')]
+        blokken=kids(inh) if inh is not None else [c for c in kids(el) if L(c.tag) in ('Al','Lijst','Begrippenlijst','table','Kadertekst','Figuur')]
         for c in blokken:
             cb=contentblok(c)
             if cb is not None: out.append(cb)

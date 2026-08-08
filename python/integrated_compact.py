@@ -114,7 +114,22 @@ def stop_contentblok(cb):
         return bl
     if t=='Tabel':
         return tabel_to_stop(cb)
-    # Figuur/Kadertekst/Citaat: aanzet -> overslaan
+    if t=='Figuur':
+        fg=T('Figuur')
+        if cb.get('eId'): fg.set('eId',cb.get('eId'))
+        if cb.get('wId'): fg.set('wId',cb.get('wId'))
+        tit=ch(cb,'Titel')
+        if tit is not None:
+            tt=T('Titel'); tt.text=''.join(r.get('tekst','') for r in kids(tit) if L(r.tag)=='TekstRun')
+            fg.append(tt)
+        ill=T('Illustratie'); ill.set('naam', cb.get('afbeeldingId') or '')
+        if cb.get('alt'): ill.set('alt', cb.get('alt'))
+        fg.append(ill)
+        bij=ch(cb,'Bijschrift')
+        if bij is not None:
+            b=T('Bijschrift'); runs_to(b, bij); fg.append(b)
+        return fg
+    # Kadertekst/Citaat: aanzet -> overslaan
     return None
 
 def tabel_to_stop(cb):

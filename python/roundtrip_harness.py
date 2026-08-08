@@ -23,7 +23,7 @@ from lxml import etree
 # Elementtypes die compact<->integrated nu nog niet round-trippt (bekende gaten).
 # De harness snoeit deze uit C weg vóór de wId/tekst-diff, zodat een resterend
 # verschil een ECHTE afwijking is ("gaat de rest goed?"). Dit is tevens de TODO-lijst.
-ACCEPTED_DROPS = {'Figuur', 'Conditie', 'Kadertekst'}
+ACCEPTED_DROPS = {'Conditie', 'Kadertekst'}
 
 import download_roundtrip as dr
 import volledig_compact as vc

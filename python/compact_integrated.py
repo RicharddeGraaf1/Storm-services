@@ -20,6 +20,14 @@ XSD_URL=("https://raw.githubusercontent.com/RicharddeGraaf1/Storm/main/"
 
 def L(t): return t.split('}')[-1] if isinstance(t,str) and '}' in t else t
 def kids(e): return [c for c in e if isinstance(c.tag,str)]
+def ungroep(children):
+    """STOP <Groep> is een transparante grouping-wrapper (geen eId) rond Al's e.d.;
+    vlak 'm af zodat zijn inhoud niet wegvalt. Recursief (geneste Groep)."""
+    out=[]
+    for c in children:
+        if isinstance(c.tag,str) and L(c.tag)=='Groep': out.extend(ungroep(kids(c)))
+        else: out.append(c)
+    return out
 def ch(e,n): return next((c for c in kids(e) if L(c.tag)==n),None)
 def ct(e,n):
     c=ch(e,n); return c.text if c is not None else None
@@ -104,7 +112,7 @@ def contentblok(el):
             it=I('Item'); it.set('eId',li.get('eId') or uid()); it.set('wId',li.get('wId') or it.get('eId'))
             num=ct(li,'LiNummer')
             if num: it.set('nummer',num)
-            for c in kids(li):
+            for c in ungroep(kids(li)):
                 if L(c.tag) in ('Al','Lijst','Figuur','table'):
                     cb=contentblok(c)
                     if cb is not None: it.append(cb)
@@ -123,7 +131,7 @@ def contentblok(el):
             defi=ch(bg,'Definitie')
             if defi is not None:
                 d=I('Definitie')
-                for c in kids(defi):
+                for c in ungroep(kids(defi)):
                     cb=contentblok(c)
                     if cb is not None: d.append(cb)
                 g.append(d)
@@ -133,7 +141,7 @@ def contentblok(el):
         return table_to_int(el)
     if ln=='Kadertekst':
         kt=I('Kadertekst'); kt.set('eId',el.get('eId') or uid()); kt.set('wId',el.get('wId') or kt.get('eId'))
-        for c in kids(el):
+        for c in ungroep(kids(el)):
             if L(c.tag)=='Kop': continue
             cb=contentblok(c)
             if cb is not None: kt.append(cb)
@@ -180,7 +188,7 @@ def table_to_int(el):
                 cel=I('Cel'); cel.set('uId',uid())
                 # block-content in de cel (Lijst/Al/…) als content-blokken behouden i.p.v.
                 # platslaan; alleen bij pure inline-tekst een enkele Alinea maken
-                blocks=[c for c in kids(entry) if L(c.tag) in ('Al','Lijst','Begrippenlijst','table','Kadertekst','Figuur')]
+                blocks=[c for c in ungroep(kids(entry)) if L(c.tag) in ('Al','Lijst','Begrippenlijst','table','Kadertekst','Figuur')]
                 if blocks:
                     for c in blocks:
                         cbk=contentblok(c)
@@ -293,7 +301,7 @@ def reshape_doccomp(el, ann, act_naam):
         if kop is not None and ln!='Lid': out.append(kop_to_int(kop))
         # inhoud -> contentBlokken
         inh=ch(el,'Inhoud')
-        blokken=kids(inh) if inh is not None else [c for c in kids(el) if L(c.tag) in ('Al','Lijst','Begrippenlijst','table','Kadertekst','Figuur')]
+        blokken=ungroep(kids(inh)) if inh is not None else ungroep([c for c in kids(el) if L(c.tag) in ('Al','Lijst','Begrippenlijst','table','Kadertekst','Figuur','Groep')])
         for c in blokken:
             cb=contentblok(c)
             if cb is not None: out.append(cb)

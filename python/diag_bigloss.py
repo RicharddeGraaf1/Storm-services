@@ -31,7 +31,7 @@ for z in rh.kies_pakketten(n):   # zelfde diverse selectie als de harness
         I=ci.transform(cpad); ipad=work/"i.xml"; etree.ElementTree(I).write(str(ipad),xml_declaration=True,encoding="UTF-8",pretty_print=True)
         Cx=ic.transform(ipad)
         a=re.sub(r'\s+','',tekst(C)); b=re.sub(r'\s+','',tekst(Cx))
-        if abs(len(a)-len(b))<2000: continue
+        if abs(len(a)-len(b))<250: continue
         print(f"\n[groot verlies] {z.name}  (C={len(a)} Cx={len(b)} d={len(a)-len(b)})")
         # eerste grote verloren fragment
         frag=None

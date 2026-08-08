@@ -36,6 +36,13 @@ def I(name):
 
 STRUCTUUR={'Boek','Deel','Hoofdstuk','Titel','Afdeling','Paragraaf','Subparagraaf',
            'Subsubparagraaf','Divisie'}   # 'Titel'/'Subchp' -> map onbekende op Divisie? nee: skip
+# STOP mgStatusElementen: Gereserveerd | Vervallen | NogNietInWerking
+STATUS=('Gereserveerd','Vervallen','NogNietInWerking')
+def status_el(el):
+    for naam in STATUS:
+        st=ch(el,naam)
+        if st is not None: return st
+    return None
 MARK={'i':'italic','b':'strong','strong':'strong','u':'underline','sup':'sup','sub':'sub',
       'IntRef':'intRef','ExtRef':'extRef','IntIoRef':'intIoRef','ExtIoRef':'extIoRef'}
 _uid=[0]
@@ -95,6 +102,11 @@ def kop_to_int(stop_kop):
         o=I('Opschrift')
         for r in runs(op): o.append(r)
         k.append(o)
+    sub=ch(stop_kop,'Subtitel')              # STOP: Kop = (...), Subtitel?
+    if sub is not None:
+        s=I('Subtitel')
+        for r in runs(sub): s.append(r)
+        k.append(s)
     return k
 
 def contentblok(el):
@@ -316,8 +328,7 @@ def reshape_doccomp(el, ann, act_naam):
         return out
     if ln in STRUCTUUR or ln=='Bijlage':
         out=I(ln); out.set('eId',el.get('eId') or uid()); out.set('wId',el.get('wId') or out.get('eId'))
-        st=ch(el,'Gereserveerd')
-        if st is None: st=ch(el,'Vervallen')
+        st=status_el(el)
         if st is not None: out.set('aantekening', L(st.tag))
         kop=ch(el,'Kop')
         if kop is not None: out.append(kop_to_int(kop))
@@ -327,8 +338,7 @@ def reshape_doccomp(el, ann, act_naam):
         return out
     if ln in ('Artikel','Lid','Divisietekst','InleidendeTekst'):
         out=I(ln); out.set('eId',el.get('eId') or uid()); out.set('wId',el.get('wId') or out.get('eId'))
-        st=ch(el,'Gereserveerd')
-        if st is None: st=ch(el,'Vervallen')
+        st=status_el(el)
         if st is not None: out.set('aantekening', L(st.tag))
         if ln=='Lid':
             num=ct(el,'LidNummer') or el.get('nummer') or '1'

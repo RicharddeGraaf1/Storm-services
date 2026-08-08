@@ -193,6 +193,9 @@ def stop_kop(kop):
     op=ch(kop,'Opschrift')
     if op is not None:
         o=T('Opschrift'); runs_to(o,op); k.append(o)
+    sub=ch(kop,'Subtitel')
+    if sub is not None:
+        s=T('Subtitel'); runs_to(s,sub); k.append(s)
     return k
 
 def reshape_back(el, regels_out):
@@ -233,22 +236,27 @@ def reshape_back(el, regels_out):
                 sub=stop_contentblok(c)
                 if sub is not None: inh.append(sub)
             return inh
+        # STOP: het statuselement en <Inhoud> sluiten elkaar NIET uit --
+        # Artikel/Lid/Divisietekst hebben choice maxOccurs="2", dus een
+        # vervallen-verklaard onderdeel mag zijn tekst gewoon behouden.
         if t=='Lid':
             ln=T('LidNummer'); ln.text=el.get('nummer') or '1'; out.append(ln)
-            out.append(T('Vervallen') if aant=='Vervallen' else inhoud())
+            if aant: out.append(T(aant))
+            if blks or not aant: out.append(inhoud())
         else:
             kop=ch(el,'Kop')
             if kop is not None: out.append(stop_kop(kop))
             if t=='Artikel' and leden:
+                if aant: out.append(T(aant))
                 for c in leden: out.append(reshape_back(c, regels_out))
-            elif aant:
-                out.append(T(aant))                 # Gereserveerd/Vervallen
             elif t=='InleidendeTekst':
+                if aant: out.append(T(aant))
                 for c in blks:                       # STOP: directe content, geen <Inhoud>
                     sub=stop_contentblok(c)
                     if sub is not None: out.append(sub)
             else:
-                out.append(inhoud())                # Inhoud (evt. leeg)
+                if aant: out.append(T(aant))         # Gereserveerd/Vervallen/NogNietInWerking
+                if blks or not aant: out.append(inhoud())
         # annotatie ontvouwen -> Regeltekst + JuridischeRegel
         rtid=el.get('owRegeltekstIdentificatie'); jrid=el.get('owJuridischeRegelIdentificatie')
         if rtid:

@@ -156,6 +156,11 @@ def contentblok(el):
 
 def table_to_int(el):
     tb=I('Tabel'); tb.set('eId',el.get('eId') or uid()); tb.set('wId',el.get('wId') or tb.get('eId'))
+    ttl=ch(el,'title')                       # tabel-titel behouden
+    if ttl is not None:
+        t=I('Titel')
+        for rr in runs(ttl): t.append(rr)
+        tb.append(t)
     tg=ch(el,'tgroup')
     if tg is None: return tb
     for cs in kids(tg):

@@ -136,6 +136,9 @@ def tabel_to_stop(cb):
     tb=T('table')
     if cb.get('eId'): tb.set('eId',cb.get('eId'))
     if cb.get('wId'): tb.set('wId',cb.get('wId'))
+    ttl=ch(cb,'Titel')                       # tabel-titel terug (vóór tgroup)
+    if ttl is not None:
+        tt=T('title'); runs_to(tt, ttl); tb.append(tt)
     tg=etree.SubElement(tb,f"{{{TEKST}}}tgroup")
     kolommen=[k for k in kids(cb) if L(k.tag)=='Kolom']
     tg.set('cols',str(len(kolommen)) if kolommen else '1')

@@ -30,14 +30,15 @@ try:
     I=ci.transform(cpad); ipad=work/"i.xml"
     etree.ElementTree(I).write(str(ipad),xml_declaration=True,encoding="UTF-8",pretty_print=True)
     Cx=ic.transform(ipad)
-    a,b=tekst_van(C),tekst_van(Cx)
-    print(f"pakket: {z.name}\nlen C={len(a)}  len C'={len(b)}\n")
+    import re as _re
+    a=_re.sub(r'\s+','',tekst_van(C)); b=_re.sub(r'\s+','',tekst_van(Cx))   # als harness: witruimte weg
+    print(f"pakket: {z.name}\nlen C={len(a)}  len C'={len(b)}  (witruimte verwijderd)\n")
     sm=difflib.SequenceMatcher(None,a,b)
     n=0
     for tag,i1,i2,j1,j2 in sm.get_opcodes():
         if tag!='equal':
-            print(f"[{tag}] C[{i1}:{i2}]={a[i1:i2][:120]!r}")
-            print(f"       C'[{j1}:{j2}]={b[j1:j2][:120]!r}\n")
+            print(f"[{tag}] C  ={a[i1:i2][:160]!r}")
+            print(f"       C' ={b[j1:j2][:160]!r}\n")
             n+=1
             if n>=6: break
 finally:
